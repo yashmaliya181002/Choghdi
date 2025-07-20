@@ -50,7 +50,7 @@ export default function Lobby() {
         };
         
         const initialGameState: GameState = {
-            id: '', // This will be replaced by the 4-digit code from the service
+            id: '', // This will be replaced by the peer id
             phase: 'lobby',
             playerCount,
             players: [hostPlayer],
@@ -77,10 +77,7 @@ export default function Lobby() {
             toast({ variant: 'destructive', title: 'Please enter your name and a game code.' });
             return;
         }
-        if (!/^\d{4}$/.test(joinGameId)) {
-            toast({ variant: 'destructive', title: 'Invalid Code', description: 'Game code must be a 4-digit number.' });
-            return;
-        }
+        
         setIsLoading(true);
         await joinGame(joinGameId);
         // Transition to lobby will be handled by state updates from the host
@@ -136,10 +133,10 @@ export default function Lobby() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="flex items-center justify-center">
-                            <div className="text-4xl font-mono tracking-widest bg-muted p-4 rounded-lg border flex items-center gap-4">
+                            <div className="text-lg font-mono tracking-widest bg-muted p-4 rounded-lg border flex items-center gap-4 w-full break-all">
                                 {gameState.id ? (
                                     <>
-                                        <span>{gameState.id}</span>
+                                        <span className="flex-1 text-center">{gameState.id}</span>
                                         <Button variant="ghost" size="icon" onClick={copyGameId}><Copy className="w-6 h-6"/></Button>
                                     </>
                                 ) : (
@@ -218,7 +215,7 @@ export default function Lobby() {
                          <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="game-id">Game Code</Label>
-                                <Input id="game-id" placeholder="Enter 4-digit code..." value={joinGameId} onChange={(e) => setJoinGameId(e.target.value)} maxLength={4} />
+                                <Input id="game-id" placeholder="Enter game code..." value={joinGameId} onChange={(e) => setJoinGameId(e.target.value)} />
                             </div>
                              <div className="flex flex-col justify-end">
                                 <Button variant="secondary" className="w-full h-10" onClick={handleJoinGame} disabled={isLoading || status !== 'connected'}>
