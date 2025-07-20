@@ -1,3 +1,612 @@
 {
-  "games": {}
+  "games": {
+    "MRIG": {
+      "id": "MRIG",
+      "phase": "playing",
+      "playerCount": 4,
+      "players": [
+        {
+          "id": 0,
+          "name": "Yash",
+          "hand": [
+            {
+              "suit": "spades",
+              "rank": "Q",
+              "id": "QS"
+            },
+            {
+              "suit": "spades",
+              "rank": "10",
+              "id": "1S"
+            },
+            {
+              "suit": "spades",
+              "rank": "8",
+              "id": "8S"
+            },
+            {
+              "suit": "spades",
+              "rank": "4",
+              "id": "4S"
+            },
+            {
+              "suit": "spades",
+              "rank": "3",
+              "id": "3S"
+            },
+            {
+              "suit": "hearts",
+              "rank": "A",
+              "id": "AH"
+            },
+            {
+              "suit": "hearts",
+              "rank": "9",
+              "id": "9H"
+            },
+            {
+              "suit": "hearts",
+              "rank": "3",
+              "id": "3H"
+            },
+            {
+              "suit": "clubs",
+              "rank": "A",
+              "id": "AC"
+            },
+            {
+              "suit": "clubs",
+              "rank": "K",
+              "id": "KC"
+            },
+            {
+              "suit": "diamonds",
+              "rank": "7",
+              "id": "7D"
+            },
+            {
+              "suit": "diamonds",
+              "rank": "5",
+              "id": "5D"
+            }
+          ],
+          "isBidder": true,
+          "isPartner": false,
+          "collectedCards": [],
+          "tricksWon": 0
+        },
+        {
+          "id": 1,
+          "name": "Ballu",
+          "hand": [
+            {
+              "suit": "spades",
+              "rank": "A",
+              "id": "AS"
+            },
+            {
+              "suit": "spades",
+              "rank": "K",
+              "id": "KS"
+            },
+            {
+              "suit": "spades",
+              "rank": "9",
+              "id": "9S"
+            },
+            {
+              "suit": "spades",
+              "rank": "7",
+              "id": "7S"
+            },
+            {
+              "suit": "spades",
+              "rank": "6",
+              "id": "6S"
+            },
+            {
+              "suit": "spades",
+              "rank": "5",
+              "id": "5S"
+            },
+            {
+              "suit": "hearts",
+              "rank": "6",
+              "id": "6H"
+            },
+            {
+              "suit": "clubs",
+              "rank": "8",
+              "id": "8C"
+            },
+            {
+              "suit": "clubs",
+              "rank": "6",
+              "id": "6C"
+            },
+            {
+              "suit": "clubs",
+              "rank": "5",
+              "id": "5C"
+            },
+            {
+              "suit": "diamonds",
+              "rank": "J",
+              "id": "JD"
+            },
+            {
+              "suit": "diamonds",
+              "rank": "8",
+              "id": "8D"
+            }
+          ],
+          "isBidder": false,
+          "isPartner": true,
+          "collectedCards": [],
+          "tricksWon": 0
+        },
+        {
+          "id": 2,
+          "name": "Karan",
+          "hand": [
+            {
+              "suit": "spades",
+              "rank": "J",
+              "id": "JS"
+            },
+            {
+              "suit": "spades",
+              "rank": "2",
+              "id": "2S"
+            },
+            {
+              "suit": "hearts",
+              "rank": "K",
+              "id": "KH"
+            },
+            {
+              "suit": "hearts",
+              "rank": "J",
+              "id": "JH"
+            },
+            {
+              "suit": "hearts",
+              "rank": "10",
+              "id": "1H"
+            },
+            {
+              "suit": "clubs",
+              "rank": "Q",
+              "id": "QC"
+            },
+            {
+              "suit": "clubs",
+              "rank": "J",
+              "id": "JC"
+            },
+            {
+              "suit": "clubs",
+              "rank": "2",
+              "id": "2C"
+            },
+            {
+              "suit": "diamonds",
+              "rank": "A",
+              "id": "AD"
+            },
+            {
+              "suit": "diamonds",
+              "rank": "Q",
+              "id": "QD"
+            },
+            {
+              "suit": "diamonds",
+              "rank": "9",
+              "id": "9D"
+            },
+            {
+              "suit": "diamonds",
+              "rank": "2",
+              "id": "2D"
+            }
+          ],
+          "isBidder": false,
+          "isPartner": false,
+          "collectedCards": [],
+          "tricksWon": 0
+        },
+        {
+          "id": 3,
+          "name": "Manan",
+          "hand": [
+            {
+              "suit": "hearts",
+              "rank": "8",
+              "id": "8H"
+            },
+            {
+              "suit": "hearts",
+              "rank": "5",
+              "id": "5H"
+            },
+            {
+              "suit": "clubs",
+              "rank": "10",
+              "id": "1C"
+            },
+            {
+              "suit": "clubs",
+              "rank": "9",
+              "id": "9C"
+            },
+            {
+              "suit": "clubs",
+              "rank": "7",
+              "id": "7C"
+            },
+            {
+              "suit": "clubs",
+              "rank": "4",
+              "id": "4C"
+            },
+            {
+              "suit": "clubs",
+              "rank": "3",
+              "id": "3C"
+            },
+            {
+              "suit": "diamonds",
+              "rank": "K",
+              "id": "KD"
+            },
+            {
+              "suit": "diamonds",
+              "rank": "10",
+              "id": "1D"
+            },
+            {
+              "suit": "diamonds",
+              "rank": "6",
+              "id": "6D"
+            },
+            {
+              "suit": "diamonds",
+              "rank": "4",
+              "id": "4D"
+            },
+            {
+              "suit": "diamonds",
+              "rank": "3",
+              "id": "3D"
+            }
+          ],
+          "isBidder": false,
+          "isPartner": false,
+          "collectedCards": [
+            {
+              "suit": "hearts",
+              "rank": "7",
+              "id": "7H"
+            },
+            {
+              "suit": "hearts",
+              "rank": "4",
+              "id": "4H"
+            },
+            {
+              "suit": "hearts",
+              "rank": "2",
+              "id": "2H"
+            },
+            {
+              "suit": "hearts",
+              "rank": "Q",
+              "id": "QH"
+            }
+          ],
+          "tricksWon": 1
+        }
+      ],
+      "deck": [
+        {
+          "suit": "spades",
+          "rank": "2",
+          "id": "2S"
+        },
+        {
+          "suit": "spades",
+          "rank": "3",
+          "id": "3S"
+        },
+        {
+          "suit": "spades",
+          "rank": "4",
+          "id": "4S"
+        },
+        {
+          "suit": "spades",
+          "rank": "5",
+          "id": "5S"
+        },
+        {
+          "suit": "spades",
+          "rank": "6",
+          "id": "6S"
+        },
+        {
+          "suit": "spades",
+          "rank": "7",
+          "id": "7S"
+        },
+        {
+          "suit": "spades",
+          "rank": "8",
+          "id": "8S"
+        },
+        {
+          "suit": "spades",
+          "rank": "9",
+          "id": "9S"
+        },
+        {
+          "suit": "spades",
+          "rank": "10",
+          "id": "1S"
+        },
+        {
+          "suit": "spades",
+          "rank": "J",
+          "id": "JS"
+        },
+        {
+          "suit": "spades",
+          "rank": "Q",
+          "id": "QS"
+        },
+        {
+          "suit": "spades",
+          "rank": "K",
+          "id": "KS"
+        },
+        {
+          "suit": "spades",
+          "rank": "A",
+          "id": "AS"
+        },
+        {
+          "suit": "hearts",
+          "rank": "2",
+          "id": "2H"
+        },
+        {
+          "suit": "hearts",
+          "rank": "3",
+          "id": "3H"
+        },
+        {
+          "suit": "hearts",
+          "rank": "4",
+          "id": "4H"
+        },
+        {
+          "suit": "hearts",
+          "rank": "5",
+          "id": "5H"
+        },
+        {
+          "suit": "hearts",
+          "rank": "6",
+          "id": "6H"
+        },
+        {
+          "suit": "hearts",
+          "rank": "7",
+          "id": "7H"
+        },
+        {
+          "suit": "hearts",
+          "rank": "8",
+          "id": "8H"
+        },
+        {
+          "suit": "hearts",
+          "rank": "9",
+          "id": "9H"
+        },
+        {
+          "suit": "hearts",
+          "rank": "10",
+          "id": "1H"
+        },
+        {
+          "suit": "hearts",
+          "rank": "J",
+          "id": "JH"
+        },
+        {
+          "suit": "hearts",
+          "rank": "Q",
+          "id": "QH"
+        },
+        {
+          "suit": "hearts",
+          "rank": "K",
+          "id": "KH"
+        },
+        {
+          "suit": "hearts",
+          "rank": "A",
+          "id": "AH"
+        },
+        {
+          "suit": "diamonds",
+          "rank": "2",
+          "id": "2D"
+        },
+        {
+          "suit": "diamonds",
+          "rank": "3",
+          "id": "3D"
+        },
+        {
+          "suit": "diamonds",
+          "rank": "4",
+          "id": "4D"
+        },
+        {
+          "suit": "diamonds",
+          "rank": "5",
+          "id": "5D"
+        },
+        {
+          "suit": "diamonds",
+          "rank": "6",
+          "id": "6D"
+        },
+        {
+          "suit": "diamonds",
+          "rank": "7",
+          "id": "7D"
+        },
+        {
+          "suit": "diamonds",
+          "rank": "8",
+          "id": "8D"
+        },
+        {
+          "suit": "diamonds",
+          "rank": "9",
+          "id": "9D"
+        },
+        {
+          "suit": "diamonds",
+          "rank": "10",
+          "id": "1D"
+        },
+        {
+          "suit": "diamonds",
+          "rank": "J",
+          "id": "JD"
+        },
+        {
+          "suit": "diamonds",
+          "rank": "Q",
+          "id": "QD"
+        },
+        {
+          "suit": "diamonds",
+          "rank": "K",
+          "id": "KD"
+        },
+        {
+          "suit": "diamonds",
+          "rank": "A",
+          "id": "AD"
+        },
+        {
+          "suit": "clubs",
+          "rank": "2",
+          "id": "2C"
+        },
+        {
+          "suit": "clubs",
+          "rank": "3",
+          "id": "3C"
+        },
+        {
+          "suit": "clubs",
+          "rank": "4",
+          "id": "4C"
+        },
+        {
+          "suit": "clubs",
+          "rank": "5",
+          "id": "5C"
+        },
+        {
+          "suit": "clubs",
+          "rank": "6",
+          "id": "6C"
+        },
+        {
+          "suit": "clubs",
+          "rank": "7",
+          "id": "7C"
+        },
+        {
+          "suit": "clubs",
+          "rank": "8",
+          "id": "8C"
+        },
+        {
+          "suit": "clubs",
+          "rank": "9",
+          "id": "9C"
+        },
+        {
+          "suit": "clubs",
+          "rank": "10",
+          "id": "1C"
+        },
+        {
+          "suit": "clubs",
+          "rank": "J",
+          "id": "JC"
+        },
+        {
+          "suit": "clubs",
+          "rank": "Q",
+          "id": "QC"
+        },
+        {
+          "suit": "clubs",
+          "rank": "K",
+          "id": "KC"
+        },
+        {
+          "suit": "clubs",
+          "rank": "A",
+          "id": "AC"
+        }
+      ],
+      "bids": [
+        {
+          "playerId": 0,
+          "amount": 140
+        },
+        {
+          "playerId": 1,
+          "amount": 0
+        },
+        {
+          "playerId": 2,
+          "amount": 0
+        },
+        {
+          "playerId": 3,
+          "amount": 0
+        }
+      ],
+      "highestBid": {
+        "playerId": 0,
+        "amount": 140
+      },
+      "trumpSuit": "spades",
+      "partnerCards": [
+        {
+          "suit": "clubs",
+          "rank": "8",
+          "id": "8C"
+        }
+      ],
+      "currentPlayerId": 3,
+      "currentTrick": {
+        "cards": [],
+        "leadingSuit": null
+      },
+      "tricksPlayed": 1,
+      "team1Score": 0,
+      "team2Score": 0
+    }
+  }
 }

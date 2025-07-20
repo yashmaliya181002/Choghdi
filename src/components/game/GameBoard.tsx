@@ -16,7 +16,7 @@ import { Crown, Users, Bot, Trophy, Info } from 'lucide-react';
 import Confetti from 'react-confetti';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-// AI flows are removed for local multiplayer testing
+// AI flows are removed for multiplayer
 // import { decideBid } from '@/ai/flows/bidding-flow';
 // import { decideCardPlay } from '@/ai/flows/play-card-flow';
 
@@ -56,40 +56,36 @@ export default function GameBoard({ initialGameState, localPlayerId, onGameState
   const bidder = gameState.players.find(p => p.id === gameState.highestBid?.playerId);
   
   const playerPositions = useMemo(() => {
-    const positions: { [key: number]: { top?: string, left?: string, bottom?: string, right?: string, transform?: string } } = {};
-    const playerCount = gameState.playerCount;
-    
-    // Find the visual index of the local player in the players array
+    const positions: { [key: number]: { top: string, left: string, transform: string } } = {};
+    const playerCount = gameState.players.length;
+    if (playerCount === 0) return {};
+
+    // Create a new array of players where the local player is always first.
     const localPlayerIndex = gameState.players.findIndex(p => p.id === localPlayerId);
-  
-    // Create a new array of players starting from the local player
+    if (localPlayerIndex === -1) return {};
+    
     const orderedPlayers = [...gameState.players.slice(localPlayerIndex), ...gameState.players.slice(0, localPlayerIndex)];
-  
-    // Player 0 is always at the bottom
-    positions[localPlayerId] = { bottom: '20px', left: '50%', transform: 'translateX(-50%)' };
 
-    // Other players are arranged around the table
-    const otherPlayers = orderedPlayers.filter(p => p.id !== localPlayerId);
+    const tableRadiusX = 400; // horizontal radius of the ellipse
+    const tableRadiusY = 250; // vertical radius of the ellipse
+    const angleIncrement = (2 * Math.PI) / playerCount;
 
-    if (playerCount === 4) {
-        if (otherPlayers[0]) positions[otherPlayers[0].id] = { top: `calc(50% - 250px)`, left: `20px`, transform: 'translateY(-50%) rotate(90deg)' }; // Left
-        if (otherPlayers[1]) positions[otherPlayers[1].id] = { top: `20px`, left: `50%`, transform: 'translateX(-50%) rotate(180deg)' }; // Top
-        if (otherPlayers[2]) positions[otherPlayers[2].id] = { top: `calc(50% - 250px)`, right: `20px`, transform: 'translateY(-50%) rotate(-90deg)' }; // Right
-    } else {
-        // Fallback for other player counts (semi-circle)
-        const angleIncrement = Math.PI / (otherPlayers.length + 1);
-        otherPlayers.forEach((player, index) => {
-            const angle = angleIncrement * (index + 1);
-            positions[player.id] = {
-                top: `calc(50% - 300px * ${Math.sin(angle)})`,
-                left: `calc(50% - 400px * ${Math.cos(angle)})`,
-                transform: 'translate(-50%, -50%)'
-            };
-        });
-    }
+    orderedPlayers.forEach((player, index) => {
+      // Start players from the bottom (270 degrees or 1.5 * PI) and go clockwise
+      const angle = 1.5 * Math.PI - (index * angleIncrement);
+      
+      const x = 50 + (tableRadiusX / window.innerWidth * 100) * Math.cos(angle);
+      const y = 50 - (tableRadiusY / window.innerHeight * 100) * Math.sin(angle);
+
+      positions[player.id] = {
+        top: `${y}%`,
+        left: `${x}%`,
+        transform: 'translate(-50%, -50%)'
+      };
+    });
 
     return positions;
-  }, [gameState.players, gameState.playerCount, localPlayerId]);
+  }, [gameState.players, localPlayerId, windowSize.width, windowSize.height]);
 
 
   useEffect(() => {
@@ -135,7 +131,9 @@ export default function GameBoard({ initialGameState, localPlayerId, onGameState
           currentPlayerId: nextPlayerId,
       };
 
-      if (newBids.length >= gameState.playerCount) {
+      if (newBids.filter(b => b.amount > 0).length === 1 && newBids.length >= gameState.playerCount -1) {
+          updatedState = finishBidding(updatedState);
+      } else if (newBids.length >= gameState.playerCount) {
           updatedState = finishBidding(updatedState);
       }
       onGameStateChange(updatedState);
@@ -250,9 +248,9 @@ export default function GameBoard({ initialGameState, localPlayerId, onGameState
                 onGameStateChange(postTrickState);
                 setIsProcessing(false);
             }, 2000);
+        } else {
+             onGameStateChange(newState);
         }
-
-        onGameStateChange(newState);
   };
 
   const processTrick = (currentState: GameState): GameState => {
@@ -455,7 +453,11 @@ export default function GameBoard({ initialGameState, localPlayerId, onGameState
                     className="absolute inset-0 flex items-center justify-center"
                     >
                     <AnimatePresence>
-                    {gameState.currentTrick.cards.map(({card, playerId}, index) => (
+                    {gameState.currentTrick.cards.map(({card, playerId}, index) => {
+                       const playerIndex = players.findIndex(p => p.id === playerId);
+                       const angle = ((playerIndex - players.findIndex(p => p.id === localPlayerId)) / playerCount) * 2 * Math.PI - (Math.PI / 2);
+
+                        return (
                         <motion.div 
                             key={card.id} 
                             className="absolute" 
@@ -463,16 +465,16 @@ export default function GameBoard({ initialGameState, localPlayerId, onGameState
                             animate={{ 
                                 opacity: 1, 
                                 scale: 1, 
-                                rotate: (index * 360/playerCount) + 15,
-                                x: Math.cos((index / playerCount) * 2 * Math.PI - Math.PI / 2) * 60,
-                                y: Math.sin((index / playerCount) * 2 * Math.PI - Math.PI / 2) * 60,
+                                x: Math.cos(angle) * 80,
+                                y: Math.sin(angle) * 80,
                             }}
                             exit={{ opacity: 0, scale: 0.5, y: 50, transition: { duration: 0.3 } }}
                             transition={{ type: 'spring', stiffness: 300, damping: 20}}
                         >
                             <CardUI card={card} isFaceUp={true} className="!w-20 !h-28" />
                         </motion.div>
-                    ))}
+                        )
+                    })}
                     </AnimatePresence>
                     </motion.div>
                 )}
