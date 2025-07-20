@@ -1,45 +1,25 @@
 'use server';
 
 import { createDeck, dealCards, type GameState, type Player } from './game';
-import fs from 'fs';
-import path from 'path';
 
 // This file simulates a "game server" or backend service.
-// It now uses a simple db.json file to persist state across browser tabs for local testing.
-const dbPath = path.join(process.cwd(), 'db.json');
+// We now use a simple in-memory object to act as our database.
+// This will be shared across serverless function invocations on Vercel.
 
 interface Db {
     games: Record<string, GameState>;
 }
 
-function readDb(): Db {
-    try {
-        if (fs.existsSync(dbPath)) {
-            const data = fs.readFileSync(dbPath, 'utf-8');
-            return JSON.parse(data) as Db;
-        }
-    } catch (error) {
-        console.error("Error reading db.json:", error);
-    }
-    // If file doesn't exist or is invalid, return a default structure
-    return { games: {} };
-}
-
-function writeDb(data: Db) {
-    try {
-        fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
-    } catch (error) {
-        console.error("Error writing to db.json:", error);
-    }
-}
-
+// In-memory store
+const db: Db = {
+    games: {}
+};
 
 function generateGameId(): string {
-    const db = readDb();
     let id = '';
     do {
         id = Math.random().toString(36).substring(2, 6).toUpperCase();
-    } while (db.games[id]); // Ensure ID is unique
+    } while (db.games[id]); // Ensure ID is unique in our in-memory store
     return id;
 }
 
@@ -75,15 +55,12 @@ export const createNewGame = async (playerCount: number, hostName: string): Prom
         team2Score: 0,
     };
     
-    const db = readDb();
     db.games[gameId] = initialGameState;
-    writeDb(db);
-
+    
     return initialGameState;
 };
 
 export const joinGame = async (gameId: string, playerName: string): Promise<{updatedState: GameState, newPlayerId: number}> => {
-    const db = readDb();
     const game = db.games[gameId.toUpperCase()];
 
     if (!game) {
@@ -110,30 +87,26 @@ export const joinGame = async (gameId: string, playerName: string): Promise<{upd
     const updatedPlayers = [...game.players, newPlayer];
     let updatedState = { ...game, players: updatedPlayers };
     
-    // If the lobby is now full, deal the cards
+    // If the lobby is now full, deal the cards and set phase to bidding
     if (updatedPlayers.length === game.playerCount) {
         const dealtPlayers = dealCards(game.deck, updatedPlayers);
-        updatedState = { ...updatedState, players: dealtPlayers };
+        updatedState = { ...updatedState, players: dealtPlayers, phase: 'bidding' };
     }
 
     db.games[gameId.toUpperCase()] = updatedState;
-    writeDb(db);
     
     return { updatedState, newPlayerId };
 };
 
 export const getGameState = async (gameId: string): Promise<GameState | null> => {
-    const db = readDb();
     return db.games[gameId.toUpperCase()] || null;
 }
 
 export const updateGameState = async (newState: GameState): Promise<GameState> => {
-    const db = readDb();
     if (!db.games[newState.id]) {
         throw new Error("Game not found to update.");
     }
     db.games[newState.id] = newState;
-    writeDb(db);
 
     return newState;
 }
