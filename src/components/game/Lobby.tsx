@@ -212,25 +212,28 @@ export default function Lobby() {
                     <CardUI card={{id: 'KH', suit: 'hearts', rank: 'K'}} isFaceUp={true} className="!w-32 !h-44 shadow-2xl" />
                 </motion.div>
                 
-                <div className="relative z-10 w-[500px] h-[500px] bg-white/20 backdrop-blur-md rounded-full flex flex-col items-center justify-center p-8 shadow-2xl border-4 border-white/30">
-                    <div className="text-center">
-                        <h1 className="text-5xl font-black text-foreground drop-shadow-lg flex items-center justify-center gap-2">
-                            Kaali 3 <SpadeIcon className="w-10 h-10 text-foreground"/> 250
-                        </h1>
-                        <p className="text-xl text-foreground/80 font-semibold tracking-wider mt-1">Play Bid Enjoy</p>
-                    </div>
-                    <div className="w-full max-w-sm mt-8 space-y-4">
+                <Card className="relative z-10 shadow-2xl bg-card/80 backdrop-blur-md border-white/20">
+                    <CardHeader className="text-center">
+                        <CardTitle className="text-5xl font-black text-foreground drop-shadow-lg flex items-center justify-center gap-2">
+                             Kaali 3 <SpadeIcon className="w-10 h-10 text-foreground"/> 250
+                        </CardTitle>
+                        <CardDescription className="text-xl text-foreground/80 font-semibold tracking-wider !mt-2">
+                            Play Bid Enjoy
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="player-name" className="text-foreground/90">Your Name</Label>
-                            <Input id="player-name" placeholder="Enter your name..." value={playerName} onChange={(e) => setPlayerName(e.target.value)} className="bg-white/20 border-black/20 text-black placeholder:text-gray-600 focus:bg-white/30"/>
+                            <Label htmlFor="player-name" className="text-foreground/90 font-bold">Your Name</Label>
+                            <Input id="player-name" placeholder="Enter your name..." value={playerName} onChange={(e) => setPlayerName(e.target.value)} className="bg-white/30 border-black/30 text-black placeholder:text-gray-700 font-semibold focus:bg-white/50"/>
                         </div>
+                        
                         {status === 'connecting' && <div className="flex items-center justify-center text-muted-foreground"><Loader2 className="mr-2 animate-spin"/>Connecting...</div>}
                         
                         <div className="flex items-end gap-4">
                             <div className="space-y-2 flex-grow">
-                                <Label htmlFor="player-count" className="text-foreground/90">Players</Label>
+                                <Label htmlFor="player-count" className="text-foreground/90 font-bold">Players</Label>
                                 <Select defaultValue={String(playerCount)} onValueChange={(val) => setPlayerCount(parseInt(val))} disabled={isLoading}>
-                                    <SelectTrigger id="player-count" className="bg-white/20 border-black/20 text-black">
+                                    <SelectTrigger id="player-count" className="bg-white/30 border-black/30 text-black font-semibold">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -245,21 +248,21 @@ export default function Lobby() {
                         
                         <div className="relative my-4">
                             <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-black/20" /></div>
-                            <div className="relative flex justify-center text-xs uppercase"><span className="bg-white/20 backdrop-blur-md px-2 text-foreground/80 rounded-full">Or</span></div>
+                            <div className="relative flex justify-center text-xs uppercase"><span className="bg-card/80 backdrop-blur-md px-2 text-foreground/80 rounded-full border border-white/20">Or</span></div>
                         </div>
 
                          <div className="flex items-end gap-4">
                             <div className="space-y-2 flex-grow">
-                                <Label htmlFor="game-id" className="text-foreground/90">Game Code</Label>
-                                <Input id="game-id" placeholder="Enter game code from host..." value={joinGameId} onChange={(e) => setJoinGameId(e.target.value)} className="bg-white/20 border-black/20 text-black placeholder:text-gray-600 focus:bg-white/30" />
+                                <Label htmlFor="game-id" className="text-foreground/90 font-bold">Game Code</Label>
+                                <Input id="game-id" placeholder="Enter game code from host..." value={joinGameId} onChange={(e) => setJoinGameId(e.target.value)} className="bg-white/30 border-black/30 text-black placeholder:text-gray-700 font-semibold focus:bg-white/50" />
                             </div>
                              <Button variant="secondary" className="w-full h-10 flex-[2]" onClick={handleJoinGame} disabled={isLoading || status !== 'connected' || !playerName || !joinGameId}>
                                 Join Game
                              </Button>
                          </div>
                          <p className="text-xs text-center text-foreground/70 pt-2">To join, paste the host's full ID they provide.</p>
-                     </div>
-                </div>
+                     </CardContent>
+                </Card>
             </motion.div>
         </div>
     );
