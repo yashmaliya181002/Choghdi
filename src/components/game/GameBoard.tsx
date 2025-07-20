@@ -15,6 +15,7 @@ import { SpadeIcon, HeartIcon, ClubIcon, DiamondIcon } from './SuitIcons';
 import { Crown, Users } from 'lucide-react';
 import Confetti from 'react-confetti';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 const SuitSelectIcon = ({ suit }: { suit: 'spades' | 'hearts' | 'clubs' | 'diamonds' }) => {
     const commonClass = "w-5 h-5 mr-2";
@@ -36,6 +37,24 @@ export default function GameBoard() {
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
 
   const { toast } = useToast();
+  
+  const playerPositions = useMemo(() => {
+    if (!gameState) return [];
+    const positions = [];
+    const radiusX = windowSize.width * 0.35;
+    const radiusY = windowSize.height * 0.3;
+    const centerX = windowSize.width / 2;
+    const centerY = windowSize.height / 2 - 50;
+    
+    for (let i = 1; i < gameState.playerCount; i++) {
+        const angle = (i / (gameState.playerCount-1)) * Math.PI * 1.5 - Math.PI * 1.25;
+        positions.push({
+            top: `${centerY + radiusY * Math.sin(angle)}px`,
+            left: `${centerX + radiusX * Math.cos(angle)}px`,
+        });
+    }
+    return positions;
+  }, [gameState, windowSize]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -45,25 +64,6 @@ export default function GameBoard() {
         return () => window.removeEventListener('resize', handleResize);
     }
   }, []);
-
-  const playerPositions = useMemo(() => {
-      if (!gameState) return [];
-      const positions = [];
-      const radiusX = windowSize.width * 0.35;
-      const radiusY = windowSize.height * 0.3;
-      const centerX = windowSize.width / 2;
-      const centerY = windowSize.height / 2 - 50;
-      
-      for (let i = 1; i < gameState.playerCount; i++) {
-          const angle = (i / (gameState.playerCount-1)) * Math.PI * 1.5 - Math.PI * 1.25;
-          positions.push({
-              top: `${centerY + radiusY * Math.sin(angle)}px`,
-              left: `${centerX + radiusX * Math.cos(angle)}px`,
-          });
-      }
-      return positions;
-  }, [gameState, windowSize]);
-
 
   const handleStartGame = (playerCount: number) => {
     const deck = createDeck(playerCount);
