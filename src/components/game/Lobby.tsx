@@ -11,6 +11,7 @@ import GameBoard from "./GameBoard";
 import { createNewGame, joinGame, getGameState, updateGameState } from "@/lib/gameService";
 import type { GameState } from "@/lib/game";
 import { Loader2, Users } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 type View = 'main' | 'lobby' | 'game';
 
