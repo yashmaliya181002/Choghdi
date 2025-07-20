@@ -1,6 +1,7 @@
+
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { type GameState, type Player, type Card, getNumberOfPartners, getCardPoints, Rank } from '@/lib/game';
 import { CardUI } from './CardUI';
@@ -16,7 +17,7 @@ import { Crown, Users, Trophy, Info } from 'lucide-react';
 import Confetti from 'react-confetti';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { getGameState, updateGameState } from '@/lib/gameService';
+// import { getGameState, updateGameState } from '@/lib/gameService'; NO LONGER NEEDED
 
 const SuitSelectIcon = ({ suit }: { suit: Card['suit'] }) => {
     const commonClass = "w-5 h-5 mr-2";
@@ -30,10 +31,12 @@ const SuitSelectIcon = ({ suit }: { suit: Card['suit'] }) => {
 
 type GameBoardProps = {
     initialGameState: GameState;
-    localPlayerId: number; 
+    localPlayerId: number;
+    isHost: boolean;
+    broadcastGameState?: (newState: GameState) => void;
 };
 
-export default function GameBoard({ initialGameState, localPlayerId }: GameBoardProps) {
+export default function GameBoard({ initialGameState, localPlayerId, isHost, broadcastGameState }: GameBoardProps) {
   const [gameState, setGameState] = useState<GameState>(initialGameState);
   const [bidAmount, setBidAmount] = useState(120);
   const [showPartnerDialog, setShowPartnerDialog] = useState(false);
@@ -46,6 +49,11 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
 
   const { toast } = useToast();
   
+  // This effect ensures that state updates from the hook/prop are reflected locally
+  useEffect(() => {
+    setGameState(initialGameState);
+  }, [initialGameState]);
+
   const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayerId)!;
   const localPlayer = gameState.players.find(p => p.id === localPlayerId)!;
   const bidder = gameState.players.find(p => p.id === gameState.highestBid?.playerId);
@@ -55,56 +63,47 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
     const playerCount = gameState.players.length;
     if (playerCount === 0) return {};
 
-    const localPlayerIndexOnServer = gameState.players.findIndex(p => p.id === localPlayerId);
-    if (localPlayerIndexOnServer === -1) return {};
+    const localPlayerIndex = gameState.players.findIndex(p => p.id === localPlayerId);
+    if (localPlayerIndex === -1) return {};
 
     const angleStep = (2 * Math.PI) / playerCount;
-    
+    const radius = Math.min(window.innerWidth, window.innerHeight) * 0.4;
+
     gameState.players.forEach((player, i) => {
-        // Calculate the position relative to the local player, who is always at the bottom
-        const relativeIndex = (i - localPlayerIndexOnServer + playerCount) % playerCount;
-        const angle = -Math.PI / 2 + relativeIndex * angleStep; // Start at the top and go clockwise
-        
-        const isHorizontal = Math.abs(Math.cos(angle)) > Math.abs(Math.sin(angle));
-        const radiusX = isHorizontal ? window.innerWidth * 0.45 : window.innerWidth * 0.35;
-        const radiusY = isHorizontal ? window.innerHeight * 0.25 : window.innerHeight * 0.4;
+        const relativeIndex = (i - localPlayerIndex + playerCount) % playerCount;
+        const angle = -Math.PI / 2 + relativeIndex * angleStep; // Start at the bottom and go counter-clockwise
 
-        const x = 50 + (radiusX / window.innerWidth * 100) * Math.cos(angle);
-        const y = 50 + (radiusY / window.innerHeight * 100) * Math.sin(angle);
-
-        positions[player.id] = {
-            top: `${y}%`,
-            left: `${x}%`,
-            transform: 'translate(-50%, -50%)'
-        };
+        // Player 0 (local) is at the bottom center
+        if (relativeIndex === 0) {
+            positions[player.id] = {
+                bottom: `5%`,
+                left: `50%`,
+                transform: 'translateX(-50%)'
+            }
+        } else {
+            const x = 50 + (radius / window.innerWidth * 100) * Math.cos(angle);
+            const y = 50 + (radius / window.innerHeight * 100) * Math.sin(angle);
+            positions[player.id] = {
+                top: `${y}%`,
+                left: `${x}%`,
+                transform: 'translate(-50%, -50%)'
+            };
+        }
     });
 
     return positions;
   }, [gameState.players, localPlayerId, windowSize.width, windowSize.height]);
 
 
-  const updateLocalGameState = (newState: GameState) => {
-    setGameState(newState);
-    if (newState.phase === 'partner-selection' && newState.highestBid?.playerId === localPlayerId) {
-        setShowPartnerDialog(true);
+  const updateAndBroadcastState = (newState: GameState) => {
+    if (isHost && broadcastGameState) {
+        broadcastGameState(newState);
     } else {
-        setShowPartnerDialog(false);
+        // Peers don't broadcast, the host does.
+        // For now, we update locally for UI responsiveness.
+        setGameState(newState);
     }
   }
-
-  useEffect(() => {
-    // Poll for game state updates every 2 seconds
-    const interval = setInterval(async () => {
-        if (!gameState.id) return;
-        const latestGameState = await getGameState(gameState.id);
-        if (latestGameState && JSON.stringify(latestGameState) !== JSON.stringify(gameState)) {
-           updateLocalGameState(latestGameState);
-        }
-    }, 2000); 
-
-    return () => clearInterval(interval);
-  }, [gameState.id, gameState]);
-
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -114,9 +113,17 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
         return () => window.removeEventListener('resize', handleResize);
     }
   }, []);
+
+  useEffect(() => {
+     if (gameState.phase === 'partner-selection' && gameState.highestBid?.playerId === localPlayerId) {
+        setShowPartnerDialog(true);
+    } else {
+        setShowPartnerDialog(false);
+    }
+  }, [gameState.phase, gameState.highestBid?.playerId, localPlayerId]);
   
   const handlePlaceBid = async (amount: number) => {
-      if (isProcessing) return;
+      if (isProcessing || !isHost) return;
       setIsProcessing(true);
 
       const currentHighestBid = gameState.highestBid?.amount || 115;
@@ -152,13 +159,12 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
           updatedState = finishBidding(updatedState);
       }
       
-      const finalState = await updateGameState(updatedState);
-      updateLocalGameState(finalState);
+      updateAndBroadcastState(updatedState);
       setIsProcessing(false);
   };
 
   const handlePass = async () => {
-        if (isProcessing) return;
+        if (isProcessing || !isHost) return;
         setIsProcessing(true);
         let updatedState: GameState = JSON.parse(JSON.stringify(gameState));
         const playerId = localPlayerId;
@@ -181,8 +187,7 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
             updatedState.currentPlayerId = nextPlayerId;
         }
 
-        const finalState = await updateGameState(updatedState);
-        updateLocalGameState(finalState);
+        updateAndBroadcastState(updatedState);
         setIsProcessing(false);
   };
 
@@ -202,7 +207,7 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
   };
 
   const handleConfirmPartners = async () => {
-      if (isProcessing) return;
+      if (isProcessing || !isHost) return;
       if(!gameState || !selectedTrump || selectedPartners.length < getNumberOfPartners(gameState.playerCount)) {
           toast({ variant: "destructive", title: "Selection Incomplete", description: "Please select a trump suit and partner card(s)."});
           return;
@@ -224,8 +229,7 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
       updatedState.partnerCards = partnerCards;
       updatedState.turnHistory.push(`${bidder?.name} chose ${selectedTrump} as trump.`);
       
-      const finalState = await updateGameState(updatedState);
-      updateLocalGameState(finalState);
+      updateAndBroadcastState(updatedState);
       
       setShowPartnerDialog(false);
       setSelectedPartners([]);
@@ -234,7 +238,7 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
   }
 
   const handlePlayCard = async (card: Card) => {
-        if (isProcessing) return;
+        if (isProcessing || !isHost) return;
         if (!gameState || gameState.phase !== 'playing' || localPlayerId !== gameState.currentPlayerId) return;
 
         const trick = gameState.currentTrick;
@@ -261,15 +265,13 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
         
         if (newState.currentTrick.cards.length === newState.playerCount) {
             // Delay processing to allow players to see the cards
-            setTimeout(async () => {
+            setTimeout(() => {
                 let postTrickState = processTrick(newState);
-                const finalState = await updateGameState(postTrickState);
-                updateLocalGameState(finalState);
+                updateAndBroadcastState(postTrickState);
                 setIsProcessing(false);
             }, 2000);
         } else {
-             const finalState = await updateGameState(newState);
-             updateLocalGameState(finalState);
+             updateAndBroadcastState(newState);
              setIsProcessing(false);
         }
   };
@@ -331,10 +333,10 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
   }
   
   const resetGame = () => {
-    toast({ title: "Game Reset", description: "A new round has been started." });
-    // In a real app, this would need to coordinate with other players.
-    // For now, it will likely break as it only resets locally.
-    // A proper implementation would call a server endpoint to reset game state for all.
+    // This is more complex now. Only the host can reset.
+    // A proper implementation would send a "reset_game" message.
+    // For now, this is disabled as it would only work for the host.
+    toast({ title: "Game Reset", description: "Only the host can start a new game." });
   }
 
   if (!gameState || !currentPlayer || !localPlayer) return <div>Loading Game...</div>;
@@ -345,20 +347,20 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
     const isLocalPlayer = player.id === localPlayerId;
     const isCurrentTurn = player.id === currentPlayerId;
 
+    if (isLocalPlayer) return null; // We render the local player's hand separately
+
     return (
      <div className="flex flex-col items-center gap-2 relative">
-        {!isLocalPlayer && (
-             <div className="relative h-16 flex items-center justify-center -mb-2">
-                {player.hand.map((_, idx) => (
-                    <div key={idx} className="absolute" style={{ 
-                        transform: `translateX(${(idx - player.hand.length / 2) * 8}px)`,
-                        zIndex: idx,
-                    }}>
-                    <CardUI className="!w-10 !h-14" />
-                    </div>
-                ))}
-            </div>
-        )}
+        <div className="relative h-16 flex items-center justify-center -mb-2">
+            {player.hand.map((_, idx) => (
+                <div key={idx} className="absolute" style={{ 
+                    transform: `translateX(${(idx - player.hand.length / 2) * 8}px)`,
+                    zIndex: idx,
+                }}>
+                <CardUI className="!w-10 !h-14" />
+                </div>
+            ))}
+        </div>
 
         <div className="flex flex-col items-center gap-2 p-2 rounded-lg bg-card/70 backdrop-blur-sm border shadow-lg min-w-[120px] text-center">
             <Avatar className={cn("border-4 transition-all duration-500", isCurrentTurn ? 'border-accent' : 'border-transparent', player.id === lastTrickWinnerId ? 'border-yellow-400 scale-110' : '')}>
@@ -382,7 +384,7 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
   const localPlayerHand = localPlayer.hand;
 
   return (
-      <div className="relative w-full h-screen overflow-hidden bg-gradient-to-br from-green-50 to-green-200 p-4 font-body">
+      <div className="relative w-full h-screen overflow-hidden bg-background p-4 font-body">
         <AnimatePresence>
         {(gameState.phase === 'playing' || gameState.phase === 'results') && gameState.highestBid && (
             <motion.div 
@@ -478,8 +480,27 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
             </div>
         </div>
 
+        {/* Local Player Area at bottom */}
+         <div className="absolute" style={playerPositions[localPlayerId]}>
+             <div className="flex flex-col items-center gap-2 p-2 rounded-lg bg-card/70 backdrop-blur-sm border shadow-lg min-w-[120px] text-center">
+                <Avatar className={cn("border-4 transition-all duration-500", currentPlayerId === localPlayerId ? 'border-accent' : 'border-transparent', localPlayerId === lastTrickWinnerId ? 'border-yellow-400 scale-110' : '')}>
+                    <AvatarFallback>{localPlayer.name.charAt(0).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <Badge variant={currentPlayerId === localPlayerId ? 'destructive' : 'secondary'} className="px-3 py-1 text-sm transition-all shadow-md">
+                   {localPlayer.name} (You)
+                </Badge>
+                <div className="flex gap-2 items-center">
+                    {localPlayer.isBidder && <Badge title="Bidder"><Crown className="w-4 h-4" /> </Badge>}
+                    {localPlayer.isPartner && <Badge variant="secondary" title="Partner"><Users className="w-4 h-4"/></Badge>}
+                    <Badge variant="outline" className="flex items-center gap-1.5 px-2">
+                        <Trophy className="w-3 h-3 text-yellow-500"/> {localPlayer.tricksWon || 0}
+                    </Badge>
+                </div>
+            </div>
+        </div>
+
         {/* Current Player's Hand */}
-        <div className="absolute bottom-[80px] left-0 right-0 flex justify-center items-end p-4" style={{ height: '200px' }}>
+        <div className="absolute bottom-[200px] left-0 right-0 flex justify-center items-end" style={{ height: '200px', pointerEvents: 'none' }}>
             <AnimatePresence>
             {localPlayerHand.map((card, i) => (
               <motion.div
@@ -493,13 +514,13 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
                 }}
                 exit={{ opacity: 0, y: 100, x: (i - localPlayerHand.length / 2) * 40, rotate: 0 }}
                 transition={{ type: 'spring', stiffness: 200, damping: 25, delay: i * 0.05 }}
-                style={{ zIndex: i }}
+                style={{ zIndex: i, pointerEvents: 'auto' }}
                 className="absolute"
               >
                 <CardUI 
                   card={card} 
                   isFaceUp={true} 
-                  isPlayable={gameState.phase === 'playing' && currentPlayerId === localPlayerId && !isProcessing}
+                  isPlayable={isHost && gameState.phase === 'playing' && currentPlayerId === localPlayerId && !isProcessing}
                   onClick={() => handlePlayCard(card)} 
                 />
               </motion.div>
@@ -508,7 +529,7 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
         </div>
         
         <AnimatePresence>
-        {currentPlayerId === localPlayerId && !isProcessing && gameState.phase === 'bidding' && (
+        {isHost && currentPlayerId === localPlayerId && !isProcessing && gameState.phase === 'bidding' && (
             <motion.div 
                 key="action-area"
                 initial={{y:100, opacity:0}} animate={{y:0, opacity:1}} exit={{y:100, opacity:0}} 
@@ -578,7 +599,7 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={handleConfirmPartners} disabled={isProcessing}>Confirm and Start Game</Button>
+              <Button onClick={handleConfirmPartners} disabled={isProcessing || !isHost}>Confirm and Start Game</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

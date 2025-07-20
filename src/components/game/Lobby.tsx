@@ -1,6 +1,7 @@
+
 'use client';
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,10 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from "@/hooks/use-toast";
 import GameBoard from "./GameBoard";
-import { createNewGame, joinGame, getGameState, updateGameState } from "@/lib/gameService";
-import type { GameState } from "@/lib/game";
-import { Loader2, Users } from "lucide-react";
+import { type GameState, createDeck, dealCards } from "@/lib/game";
+import { Loader2, Users, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useGameConnection } from "@/hooks/useGameConnection";
 
 type View = 'main' | 'lobby' | 'game';
 
@@ -19,119 +20,105 @@ export default function Lobby() {
     const [view, setView] = useState<View>('main');
     const [playerName, setPlayerName] = useState('');
     const [playerCount, setPlayerCount] = useState(4);
-    const [gameId, setGameId] = useState('');
-    const [gameState, setGameState] = useState<GameState | null>(null);
-    const [localPlayerId, setLocalPlayerId] = useState<number | null>(null);
+    const [joinGameId, setJoinGameId] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
 
-    // Persist and retrieve session info to handle reloads
-    useEffect(() => {
-        const savedGameId = sessionStorage.getItem('kt_gameId');
-        const savedPlayerId = sessionStorage.getItem('kt_playerId');
-        if (savedGameId && savedPlayerId) {
-            setIsLoading(true);
-            getGameState(savedGameId).then(gs => {
-                if (gs) {
-                    setGameId(savedGameId);
-                    setLocalPlayerId(parseInt(savedPlayerId, 10));
-                    setGameState(gs);
-                    if (gs.phase === 'lobby') {
-                        setView('lobby');
-                    } else {
-                        setView('game');
-                    }
-                } else {
-                    sessionStorage.clear(); // Game doesn't exist anymore
-                }
-            }).finally(() => setIsLoading(false));
-        }
-    }, []);
+    const { myPeerId, status, role, gameState, hostGame, joinGame, updateGameState, broadcastGameState } = useGameConnection(playerName);
 
-    const handleCreateGame = async () => {
+    useEffect(() => {
+        if (gameState?.phase && gameState.phase !== 'lobby') {
+            setView('game');
+        }
+    }, [gameState?.phase]);
+
+    const handleCreateGame = () => {
         if (!playerName.trim()) {
             toast({ variant: 'destructive', title: 'Please enter your name.' });
             return;
         }
-        setIsLoading(true);
-        try {
-            const newGame = await createNewGame(playerCount, playerName);
-            setGameState(newGame);
-            setGameId(newGame.id);
-            setLocalPlayerId(newGame.players[0].id);
-            sessionStorage.setItem('kt_gameId', newGame.id);
-            sessionStorage.setItem('kt_playerId', newGame.players[0].id.toString());
-            setView('lobby');
-        } catch (error) {
-            toast({ variant: 'destructive', title: 'Failed to create game', description: (error as Error).message });
-        } finally {
-            setIsLoading(false);
+        if (status !== 'connected') {
+            toast({ variant: 'destructive', title: 'Connection not ready', description: 'Please wait a moment and try again.' });
+            return;
         }
+        setIsLoading(true);
+
+        const hostPlayer = {
+            id: 0, name: playerName, hand: [], isBidder: false, isPartner: false, collectedCards: [], tricksWon: 0, peerId: myPeerId
+        };
+        
+        const initialGameState: GameState = {
+            id: myPeerId,
+            phase: 'lobby',
+            playerCount,
+            players: [hostPlayer],
+            deck: createDeck(playerCount),
+            bids: [],
+            highestBid: null,
+            trumpSuit: null,
+            partnerCards: [],
+            currentPlayerId: 0,
+            currentTrick: { cards: [], leadingSuit: null },
+            tricksPlayed: 0,
+            team1Score: 0,
+            team2Score: 0,
+            turnHistory: [`Game created by ${playerName}`],
+        };
+
+        hostGame(initialGameState);
+        setView('lobby');
+        setIsLoading(false);
     };
     
-    const handleJoinGame = async () => {
-        if (!playerName.trim() || !gameId.trim()) {
+    const handleJoinGame = () => {
+        if (!playerName.trim() || !joinGameId.trim()) {
             toast({ variant: 'destructive', title: 'Please enter your name and a game code.' });
             return;
         }
         setIsLoading(true);
-        try {
-            const result = await joinGame(gameId, playerName);
-            setGameState(result.updatedState);
-            setLocalPlayerId(result.newPlayerId);
-            sessionStorage.setItem('kt_gameId', result.updatedState.id);
-            sessionStorage.setItem('kt_playerId', result.newPlayerId.toString());
-            setView('lobby');
-        } catch (error) {
-            toast({ variant: 'destructive', title: 'Failed to join game', description: (error as Error).message || "Please check the code and try again." });
-        } finally {
-            setIsLoading(false);
-        }
+        joinGame(joinGameId);
+        // Transition to lobby will be handled by state updates from the host
+        setView('lobby');
+        setIsLoading(false);
     };
 
-    const handleStartGame = async () => {
-        if (!gameState || !gameId) return;
+    const handleStartGame = () => {
+        if (!gameState || role !== 'host') return;
         setIsLoading(true);
-        try {
-            let updatedState = await getGameState(gameId);
-            if(updatedState){
-                updatedState.phase = 'bidding';
-                const finalState = await updateGameState(updatedState);
-                setGameState(finalState);
-                setView('game');
-            }
-        } catch(e) {
-            toast({variant: 'destructive', title: 'Could not start game'});
-        } finally {
-            setIsLoading(false);
-        }
+
+        let updatedState = { ...gameState };
+        
+        // Deal cards and set game to bidding phase
+        const dealtPlayers = dealCards(updatedState.deck, updatedState.players);
+        updatedState.players = dealtPlayers;
+        updatedState.phase = 'bidding';
+        updatedState.turnHistory.push(`The game has started!`);
+        
+        broadcastGameState(updatedState); // Send the final "start game" state to all peers
+        setView('game');
+        setIsLoading(false);
     }
-    
-    // Polling effect for the lobby
-    useEffect(() => {
-        if (view !== 'lobby' || !gameId) return;
 
-        const interval = setInterval(async () => {
-            const updatedGameState = await getGameState(gameId);
-            if (updatedGameState) {
-                setGameState(updatedGameState);
-                // If host started the game, transition for all players
-                if(updatedGameState.phase !== 'lobby') {
-                    setView('game');
-                }
-            }
-        }, 2000); // Poll every 2 seconds
+    const copyGameId = () => {
+        if (!gameState?.id) return;
+        navigator.clipboard.writeText(gameState.id);
+        toast({ title: "Copied!", description: "Game code copied to clipboard." });
+    }
 
-        return () => clearInterval(interval);
-    }, [view, gameId]);
+    if (view === 'game' && gameState) {
+        const localPlayer = gameState.players.find(p => p.peerId === myPeerId);
+        if (!localPlayer) return <div>Joining game...</div>
 
-
-    if (view === 'game' && gameState && localPlayerId !== null) {
-        return <GameBoard initialGameState={gameState} localPlayerId={localPlayerId} />;
+        return <GameBoard
+            initialGameState={gameState}
+            localPlayerId={localPlayer.id}
+            isHost={role === 'host'}
+            broadcastGameState={role === 'host' ? broadcastGameState : undefined}
+        />;
     }
 
     if (view === 'lobby' && gameState) {
-        const isHost = localPlayerId === 0;
+        const isHost = role === 'host';
         const allPlayersJoined = gameState.players.length === gameState.playerCount;
 
         return (
@@ -143,8 +130,9 @@ export default function Lobby() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="flex items-center justify-center">
-                            <div className="text-4xl font-mono tracking-widest bg-muted p-4 rounded-lg border">
-                                {gameState.id}
+                            <div className="text-4xl font-mono tracking-widest bg-muted p-4 rounded-lg border flex items-center gap-4">
+                                <span>{gameState.id}</span>
+                                <Button variant="ghost" size="icon" onClick={copyGameId}><Copy className="w-6 h-6"/></Button>
                             </div>
                         </div>
 
@@ -166,7 +154,6 @@ export default function Lobby() {
                              </Button>
                         )}
                         {!isHost && <p className="text-center text-muted-foreground">Waiting for the host to start the game...</p>}
-
                     </CardContent>
                  </Card>
             </div>
@@ -185,13 +172,13 @@ export default function Lobby() {
                     <CardDescription>The classic card game, online.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <AnimatePresence mode="wait">
                      <motion.div key="main" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{opacity: 0, x: 50}} className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="player-name">Your Name</Label>
                             <Input id="player-name" placeholder="Enter your name..." value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
                         </div>
-
+                        {status === 'connecting' && <div className="flex items-center justify-center text-muted-foreground"><Loader2 className="mr-2 animate-spin"/>Connecting to server...</div>}
+                        
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="player-count">Players</Label>
@@ -205,7 +192,7 @@ export default function Lobby() {
                                 </Select>
                             </div>
                             <div className="flex flex-col justify-end">
-                                <Button className="w-full h-10" onClick={handleCreateGame} disabled={isLoading}>
+                                <Button className="w-full h-10" onClick={handleCreateGame} disabled={isLoading || status !== 'connected'}>
                                    {isLoading ? <Loader2 className="animate-spin" /> : 'Create Table'}
                                 </Button>
                             </div>
@@ -219,16 +206,15 @@ export default function Lobby() {
                          <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="game-id">Game Code</Label>
-                                <Input id="game-id" placeholder="4-digit code..." value={gameId} onChange={(e) => setGameId(e.target.value.toUpperCase())} />
+                                <Input id="game-id" placeholder="Paste code..." value={joinGameId} onChange={(e) => setJoinGameId(e.target.value)} />
                             </div>
                              <div className="flex flex-col justify-end">
-                                <Button variant="secondary" className="w-full h-10" onClick={handleJoinGame} disabled={isLoading}>
+                                <Button variant="secondary" className="w-full h-10" onClick={handleJoinGame} disabled={isLoading || status !== 'connected'}>
                                     {isLoading ? <Loader2 className="animate-spin" /> : 'Join Game'}
                                 </Button>
                              </div>
                          </div>
                      </motion.div>
-                    </AnimatePresence>
                 </CardContent>
             </Card>
             </motion.div>

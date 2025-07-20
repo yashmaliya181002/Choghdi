@@ -10,6 +10,7 @@ export interface Card {
 
 export interface Player {
   id: number;
+  peerId: string;
   name: string;
   hand: Card[];
   isBidder: boolean;
@@ -29,7 +30,7 @@ export interface Trick {
 }
 
 export interface GameState {
-  id: string; // Game room code
+  id: string; // Game room code (host's peerId)
   phase: GamePhase;
   players: Player[];
   playerCount: number;
