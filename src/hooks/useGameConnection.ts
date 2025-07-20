@@ -146,7 +146,8 @@ export const useGameConnection = (localPlayerName: string) => {
             setGameState({ ...initialState, id: roomCode });
         } catch (error) {
             console.error(error);
-            toast({ variant: 'destructive', title: 'Could not create room', description: 'The server might be busy. Please try again.' });
+            const errorMessage = error instanceof Error ? error.message : 'The server might be busy. Please try again.';
+            toast({ variant: 'destructive', title: 'Could not create room', description: errorMessage });
         }
     };
 
@@ -183,7 +184,8 @@ export const useGameConnection = (localPlayerName: string) => {
 
         } catch (error) {
             console.error(error);
-            toast({ variant: 'destructive', title: 'Error joining game', description: 'Could not connect to the room service.' });
+            const errorMessage = error instanceof Error ? error.message : 'Could not connect to the room service.';
+            toast({ variant: 'destructive', title: 'Error joining game', description: errorMessage });
         }
     };
     

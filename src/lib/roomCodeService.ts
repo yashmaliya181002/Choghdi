@@ -1,58 +1,57 @@
 'use server';
 
-import { kv } from '@vercel/kv';
-
-// This service maps short, user-friendly 4-digit codes to long, technical PeerJS IDs.
-// It uses Vercel KV to store the mappings, making it reliable in a serverless environment.
-
-// Function to generate a random 4-digit numeric code as a string.
-const generateRoomCode = (): string => {
-    return Math.floor(1000 + Math.random() * 9000).toString();
-};
+const ROOM_SERVICE_URL = 'https://lboy.fly.dev/api/room';
 
 /**
- * Creates a new room, generating a unique 4-digit code and mapping it to the host's peerId.
- * It will retry a few times if it generates a code that's already in use.
+ * Creates a new room using a public service, getting a short code for a peerId.
  * @param peerId The host's full PeerJS ID.
  * @returns The new 4-digit room code.
- * @throws If a unique room code cannot be generated after several attempts.
+ * @throws If the service is unavailable or fails to create a room.
  */
 export const createRoom = async (peerId: string): Promise<string> => {
-    if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
-        console.log("KV store not configured. Cannot create room.");
-        throw new Error("Server configuration error. Cannot create room.");
+  try {
+    const response = await fetch(ROOM_SERVICE_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ peerId }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Room service failed with status: ${response.status}`);
     }
 
-    let roomCode: string;
-    let attempts = 0;
-    const maxAttempts = 10;
-
-    while (attempts < maxAttempts) {
-        roomCode = generateRoomCode();
-        // Use `setnx` to set the value only if the key does not already exist.
-        // It returns 1 if the key was set, or 0 if the key already existed.
-        const wasSet = await kv.setnx(`room:${roomCode}`, peerId);
-        if (wasSet) {
-            // Set an expiration for the room code to clean up old games.
-            // 2 hours in seconds.
-            await kv.expire(`room:${roomCode}`, 2 * 60 * 60); 
-            return roomCode;
-        }
-        attempts++;
+    const data = await response.json();
+    if (!data.roomCode) {
+        throw new Error('Room service did not return a room code.');
     }
 
-    throw new Error('Could not create a new room. Please try again.');
+    return data.roomCode;
+  } catch (error) {
+    console.error('Error creating room:', error);
+    throw new Error('Could not connect to the room service. Please try again.');
+  }
 };
 
 /**
- * Retrieves the host's PeerJS ID associated with a given 4-digit room code.
- * @param roomCode The 4-digit room code entered by the joining player.
- * @returns The host's PeerJS ID, or null if the room code is not found.
+ * Retrieves the host's PeerJS ID for a given 4-digit room code.
+ * @param roomCode The 4-digit room code.
+ * @returns The host's PeerJS ID, or null if not found.
  */
 export const getPeerIdForRoom = async (roomCode: string): Promise<string | null> => {
-     if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
-        console.log("KV store not configured. Cannot get peer ID.");
-        return null; // In local dev without KV, we can't join rooms this way.
+  try {
+    const response = await fetch(`${ROOM_SERVICE_URL}/${roomCode}`);
+    if (response.status === 404) {
+      return null; // Not found
     }
-    return await kv.get(`room:${roomCode}`);
+    if (!response.ok) {
+      throw new Error(`Room service failed with status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.peerId || null;
+  } catch (error) {
+    console.error('Error getting peer ID:', error);
+    throw new Error('Could not connect to the room service. Please try again.');
+  }
 };
