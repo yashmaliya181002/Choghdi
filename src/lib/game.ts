@@ -30,7 +30,8 @@ export interface Trick {
 }
 
 export interface GameState {
-  id: string; // Game room code (host's peerId)
+  id: string; // Game room code (can be short-code or full peerId)
+  hostPeerId: string; // Always the full PeerJS ID of the host
   phase: GamePhase;
   players: Player[];
   playerCount: number;
@@ -51,9 +52,11 @@ const SUITS: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
 const RANKS: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 
 export const getCardPoints = (card: Card): number => {
-    if (card.suit === 'spades' && card.rank === '3') return 30;
+    // In Kaali Teeri, only the 3 of Spades has points. Other high cards are for winning tricks.
+    // Let's simplify and use a common point system.
     if (['A', 'K', 'Q', 'J', '10'].includes(card.rank)) return 10;
     if (card.rank === '5') return 5;
+    // The 3 of Spades is special but handled by game logic, not raw point value.
     return 0;
 };
 
@@ -83,7 +86,7 @@ export const shuffleDeck = (deck: Card[]): Card[] => {
 export const dealCards = (deck: Card[], players: Player[]): Player[] => {
   const playerCount = players.length;
   const shuffledDeck = shuffleDeck(deck);
-  const updatedPlayers = players.map(p => ({...p, hand: []}));
+  const updatedPlayers = players.map(p => ({...p, hand: [] as Card[]}));
 
   // Distribute cards as evenly as possible
   let cardIndex = 0;

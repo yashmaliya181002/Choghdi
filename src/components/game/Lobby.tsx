@@ -1,6 +1,7 @@
 
 'use client';
 import { useState, useEffect } from "react";
+import { useSearchParams } from 'next/navigation';
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from "@/hooks/use-toast";
 import GameBoard from "./GameBoard";
 import { type GameState, createDeck, dealCards } from "@/lib/game";
-import { Loader2, Users, Copy } from "lucide-react";
+import { Loader2, Users, Copy, Link as LinkIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useGameConnection } from "@/hooks/useGameConnection";
 
@@ -24,13 +25,33 @@ export default function Lobby() {
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
 
+    const searchParams = useSearchParams();
+    const gameToJoin = searchParams.get('join');
+
     const { myPeerId, status, role, gameState, hostGame, joinGame, broadcastGameState } = useGameConnection(playerName);
+
+    useEffect(() => {
+        // Automatically try to join a game if a 'join' URL parameter is present
+        if (gameToJoin && playerName && status === 'connected' && role === 'none' && !gameState) {
+            handleJoinFromUrl(gameToJoin);
+        }
+    }, [gameToJoin, playerName, status, role, gameState]);
+    
+    const handleJoinFromUrl = async (hostId: string) => {
+        setIsLoading(true);
+        await joinGame(hostId);
+        setView('lobby');
+        setIsLoading(false);
+    };
 
     useEffect(() => {
         if (gameState?.phase && gameState.phase !== 'lobby') {
             setView('game');
         } else if (gameState?.phase === 'lobby') {
             setView('lobby');
+        } else {
+            // If gameState becomes null (e.g., disconnected), return to main menu
+            setView('main');
         }
     }, [gameState]);
 
@@ -50,7 +71,8 @@ export default function Lobby() {
         };
         
         const initialGameState: GameState = {
-            id: '', // This will be replaced by the peer id
+            id: '', // This will be the short room code
+            hostPeerId: '', // This will be the host's full peer ID
             phase: 'lobby',
             playerCount,
             players: [hostPlayer],
@@ -78,11 +100,7 @@ export default function Lobby() {
             return;
         }
         
-        setIsLoading(true);
-        await joinGame(joinGameId);
-        // Transition to lobby will be handled by state updates from the host
-        setView('lobby');
-        setIsLoading(false);
+        toast({ title: 'This feature is disabled', description: 'Please use the shareable link to join a game.' });
     };
 
     const handleStartGame = () => {
@@ -102,10 +120,11 @@ export default function Lobby() {
         setIsLoading(false);
     }
 
-    const copyGameId = () => {
-        if (!gameState?.id) return;
-        navigator.clipboard.writeText(gameState.id);
-        toast({ title: "Copied!", description: "Game code copied to clipboard." });
+    const copyGameLink = () => {
+        if (!gameState?.hostPeerId) return;
+        const joinLink = `${window.location.origin}${window.location.pathname}?join=${gameState.hostPeerId}`;
+        navigator.clipboard.writeText(joinLink);
+        toast({ title: "Copied!", description: "Game link copied to clipboard." });
     }
 
     if (view === 'game' && gameState) {
@@ -129,20 +148,21 @@ export default function Lobby() {
                  <Card className="w-full max-w-md shadow-2xl">
                     <CardHeader className="text-center">
                         <CardTitle className="text-3xl font-bold text-primary">Game Lobby</CardTitle>
-                        <CardDescription>Share this code with your friends!</CardDescription>
+                        <CardDescription>Share the game link with your friends!</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="flex items-center justify-center">
-                            <div className="text-lg font-mono tracking-widest bg-muted p-4 rounded-lg border flex items-center gap-4 w-full break-all">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                            <Label>Game Code</Label>
+                            <div className="text-4xl font-mono tracking-widest bg-muted p-4 rounded-lg border w-full text-center">
                                 {gameState.id ? (
-                                    <>
-                                        <span className="flex-1 text-center">{gameState.id}</span>
-                                        <Button variant="ghost" size="icon" onClick={copyGameId}><Copy className="w-6 h-6"/></Button>
-                                    </>
+                                    <span>{gameState.id}</span>
                                 ) : (
                                     <Loader2 className="animate-spin" />
                                 )}
                             </div>
+                            <Button variant="outline" onClick={copyGameLink} className="w-full">
+                               <LinkIcon className="mr-2" /> Copy Invite Link
+                            </Button>
                         </div>
 
                         <div className="space-y-2">
@@ -186,7 +206,7 @@ export default function Lobby() {
                             <Label htmlFor="player-name">Your Name</Label>
                             <Input id="player-name" placeholder="Enter your name..." value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
                         </div>
-                        {status === 'connecting' && <div className="flex items-center justify-center text-muted-foreground"><Loader2 className="mr-2 animate-spin"/>Connecting to server...</div>}
+                        {status === 'connecting' && <div className="flex items-center justify-center text-muted-foreground"><Loader2 className="mr-2 animate-spin"/>Connecting...</div>}
                         
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
@@ -201,8 +221,8 @@ export default function Lobby() {
                                 </Select>
                             </div>
                             <div className="flex flex-col justify-end">
-                                <Button className="w-full h-10" onClick={handleCreateGame} disabled={isLoading || status !== 'connected'}>
-                                   {isLoading ? <Loader2 className="animate-spin" /> : 'Create Table'}
+                                <Button className="w-full h-10" onClick={handleCreateGame} disabled={isLoading || status !== 'connected' || !playerName}>
+                                   {isLoading ? <Loader2 className="animate-spin" /> : 'Create Game'}
                                 </Button>
                             </div>
                         </div>
@@ -215,14 +235,15 @@ export default function Lobby() {
                          <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="game-id">Game Code</Label>
-                                <Input id="game-id" placeholder="Enter game code..." value={joinGameId} onChange={(e) => setJoinGameId(e.target.value)} />
+                                <Input id="game-id" placeholder="Join via link" value={joinGameId} onChange={(e) => setJoinGameId(e.target.value)} disabled={true} />
                             </div>
                              <div className="flex flex-col justify-end">
-                                <Button variant="secondary" className="w-full h-10" onClick={handleJoinGame} disabled={isLoading || status !== 'connected'}>
-                                    {isLoading ? <Loader2 className="animate-spin" /> : 'Join Game'}
+                                <Button variant="secondary" className="w-full h-10" onClick={handleJoinGame} disabled={true}>
+                                    Join Game
                                 </Button>
                              </div>
                          </div>
+                         <p className="text-xs text-center text-muted-foreground pt-2">Joining by code is disabled. Please use the host's invite link.</p>
                      </motion.div>
                 </CardContent>
             </Card>
