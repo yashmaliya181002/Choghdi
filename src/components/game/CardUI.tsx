@@ -4,7 +4,6 @@ import { motion } from 'framer-motion';
 import { type Card } from '@/lib/game';
 import { cn } from '@/lib/utils';
 import { SpadeIcon, HeartIcon, ClubIcon, DiamondIcon } from './SuitIcons';
-import { getCardPoints } from '@/lib/game';
 
 type CardProps = {
   card?: Card;
@@ -29,8 +28,6 @@ const SuitIcon = ({ suit, className }: { suit: Card['suit']; className?: string 
 };
 
 export function CardUI({ card, isFaceUp = false, className, onClick, isPlayable = false }: CardProps) {
-    const cardPoints = card ? getCardPoints(card) : 0;
-    const isSpecialCard = card?.suit === 'spades' && card?.rank === '3';
     const isRed = card?.suit === 'hearts' || card?.suit === 'diamonds';
     
     return (
@@ -56,15 +53,6 @@ export function CardUI({ card, isFaceUp = false, className, onClick, isPlayable 
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
                     <SuitIcon suit={card.suit} className="w-10 h-10 opacity-20" />
                 </div>
-                
-                {cardPoints > 0 && (
-                     <div className={cn(
-                        "absolute bottom-1 left-1 text-xs font-bold px-1.5 py-0.5 rounded-full bg-background/80 border",
-                        isSpecialCard ? "border-yellow-400 text-yellow-600" : "border-border"
-                    )}>
-                        {cardPoints}
-                    </div>
-                )}
                 
                 <div className="self-end rotate-180 flex flex-col items-center">
                     <div className="font-bold text-xl leading-none">{card.rank}</div>

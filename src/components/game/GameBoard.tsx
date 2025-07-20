@@ -17,7 +17,6 @@ import { Crown, Users, Trophy, Info } from 'lucide-react';
 import Confetti from 'react-confetti';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-// import { getGameState, updateGameState } from '@/lib/gameService'; NO LONGER NEEDED
 
 const SuitSelectIcon = ({ suit }: { suit: Card['suit'] }) => {
     const commonClass = "w-5 h-5 mr-2";
@@ -61,28 +60,33 @@ export default function GameBoard({ initialGameState, localPlayerId, isHost, bro
   const playerPositions = useMemo(() => {
     const positions: { [key: number]: { top?: string, left?: string, bottom?: string, right?: string, transform: string } } = {};
     const playerCount = gameState.players.length;
-    if (playerCount === 0) return {};
+    if (playerCount === 0 || typeof window === 'undefined') return {};
 
     const localPlayerIndex = gameState.players.findIndex(p => p.id === localPlayerId);
     if (localPlayerIndex === -1) return {};
 
-    const angleStep = (2 * Math.PI) / playerCount;
-    const radius = Math.min(window.innerWidth, window.innerHeight) * 0.4;
+    // Use a smaller radius for more players to keep them on screen
+    const baseRadiusX = window.innerWidth < 768 ? 0.35 : 0.4;
+    const baseRadiusY = window.innerHeight < 768 ? 0.3 : 0.35;
+    const radiusMultiplier = Math.max(0.7, 1 - (playerCount - 4) * 0.05);
+
+    const radiusX = window.innerWidth * baseRadiusX * radiusMultiplier;
+    const radiusY = window.innerHeight * baseRadiusY * radiusMultiplier;
 
     gameState.players.forEach((player, i) => {
         const relativeIndex = (i - localPlayerIndex + playerCount) % playerCount;
-        const angle = -Math.PI / 2 + relativeIndex * angleStep; // Start at the bottom and go counter-clockwise
-
-        // Player 0 (local) is at the bottom center
-        if (relativeIndex === 0) {
+        
+        if (relativeIndex === 0) { // Local player
             positions[player.id] = {
                 bottom: `5%`,
                 left: `50%`,
                 transform: 'translateX(-50%)'
             }
         } else {
-            const x = 50 + (radius / window.innerWidth * 100) * Math.cos(angle);
-            const y = 50 + (radius / window.innerHeight * 100) * Math.sin(angle);
+             // Distribute other players in the top semi-circle
+            const angle = Math.PI + (relativeIndex / (playerCount)) * Math.PI;
+            const x = 50 + (radiusX / window.innerWidth * 100) * Math.cos(angle);
+            const y = 50 + (radiusY / window.innerHeight * 100) * Math.sin(angle) * 1.5; // Use more vertical space
             positions[player.id] = {
                 top: `${y}%`,
                 left: `${x}%`,
@@ -378,7 +382,7 @@ export default function GameBoard({ initialGameState, localPlayerId, isHost, bro
             </div>
         </div>
      </div>
-    )
+    );
   };
 
   const localPlayerHand = localPlayer.hand;
@@ -422,8 +426,28 @@ export default function GameBoard({ initialGameState, localPlayerId, isHost, bro
 
         {/* The Table */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
-            <div className="relative rounded-full bg-green-800/90 shadow-2xl border-[16px] border-amber-800" style={{width: '450px', height: '450px'}}>
-                <div className="absolute inset-0 rounded-full bg-green-900/50" />
+            <div 
+                className="relative rounded-full bg-green-800 shadow-2xl flex items-center justify-center" 
+                style={{
+                    width: 'clamp(300px, 40vw, 550px)', 
+                    aspectRatio: '1 / 1',
+                    background: 'radial-gradient(circle, hsl(var(--primary) / 0.8) 0%, hsl(var(--primary) / 0.9) 100%)', // Forest green gradient
+                    boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5), 0 10px 30px rgba(0,0,0,0.3)'
+                }}
+            >
+                {/* Wooden border */}
+                <div 
+                    className="absolute -inset-4 rounded-full"
+                    style={{
+                        background: `
+                            repeating-radial-gradient(circle at 50% 50%, transparent, transparent 10px, rgba(0,0,0,.2) 10px, rgba(0,0,0,.2) 20px),
+                            url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzkyNjY0MSI+PC9yZWN0PjxwYXRoIGQ9Ik0gMCwxMCBIIDEwMCBNIDAsMzAgSCAxMDAgTSAwLDUwIEggMTAwIE0gMCw3MCBIIDEwMCBNIDAsOTAgSCAxMDAiIHN0cm9rZT0iIzgwNTMyRiIgc3Ryb2tlLXdpZHRoPSIzIj48L3BhdGg+PHBhdGggZD0iTSA1MCwwIFYgMTAwIiBzdHJva2U9IiM4MDUzMkYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLW9wYWNpdHk9IjAuNSI+PC9wYXRoPjwvc3ZnPg==')`,
+                        backgroundSize: 'auto, 100px 100px',
+                        boxShadow: 'inset 0 0 15px #54371e, 0 0 10px #54371e, 0 5px 15px rgba(0,0,0,0.5)',
+                        zIndex: -1
+                    }}
+                ></div>
+
                  <AnimatePresence>
                  {gameState.phase === 'playing' && (
                     <motion.div 
