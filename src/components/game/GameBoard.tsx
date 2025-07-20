@@ -49,51 +49,56 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
 
   const { toast } = useToast();
   
-  const humanPlayer = gameState.players[0]; // Player 0 is always the human user in this local setup
   const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayerId)!;
   const bidder = gameState.players.find(p => p.id === gameState.highestBid?.playerId);
   
   const playerPositions = useMemo(() => {
-    const positions: { [key: number]: { top?: string, left?: string, bottom?: string, transform: string } } = {};
+    const positions: { [key: number]: { top?: string, left?: string, bottom?: string, right?: string, transform?: string } } = {};
     const playerCount = gameState.playerCount;
-    const center_x = windowSize.width / 2;
-    const center_y = windowSize.height / 2;
-    const radius_x = Math.min(windowSize.width * 0.4, 500);
-    const radius_y = Math.min(windowSize.height * 0.3, 350);
+    const humanPlayerId = 0; // Assuming player 0 is always the human player
+    const playerIds = gameState.players.map(p => p.id);
+  
+    // Find the visual index of the human player
+    const humanPlayerIndex = playerIds.indexOf(humanPlayerId);
+  
+    // Create a new array of player IDs starting from the human player
+    const orderedPlayerIds = [...playerIds.slice(humanPlayerIndex), ...playerIds.slice(0, humanPlayerIndex)];
+  
+    // Define positions for a 4-player game
+    const fourPlayerPositions = [
+      { bottom: '20px', left: '50%', transform: 'translateX(-50%)' }, // Bottom
+      { top: '50%', left: '20px', transform: 'translateY(-50%)' },  // Left
+      { top: '20px', left: '50%', transform: 'translateX(-50%)' },  // Top
+      { top: '50%', right: '20px', transform: 'translateY(-50%)' }, // Right
+    ];
 
-    // Player 0 (human player) is always at the bottom
-    positions[0] = {
-      bottom: '220px',
-      left: `${center_x}px`,
-      transform: 'translateX(-50%)',
+    // Generic circle for other counts
+    const getCirclePosition = (index: number) => {
+        const angle = (index / (playerCount - 1)) * Math.PI; // Top half circle
+        return {
+            top: `calc(50% - 300px * ${Math.sin(angle)})`,
+            left: `calc(50% + 350px * ${Math.cos(angle)})`,
+            transform: 'translate(-50%, -50%)'
+        };
     };
-    
-    // Position other players in a circle
-    const otherPlayers = gameState.players.filter(p => p.id !== 0);
-    const angleIncrement = (2 * Math.PI) / (playerCount);
 
-    otherPlayers.forEach((player) => {
-      // We arrange players in a way that feels natural for a card game
-      // For 4 players: p1 left, p2 top, p3 right
-      // This is a simplified logic, can be improved for more players
-      let angle = 0;
-      switch(playerCount) {
-        case 4:
-           angle = player.id * (Math.PI / 2) + (Math.PI / 2); // 90, 180, 270 degrees
-           break;
-        default:
-           angle = (player.id / (playerCount -1)) * Math.PI + (Math.PI); // Distribute across top half
-           break;
-      }
-      positions[player.id] = {
-        top: `${center_y - radius_y * Math.cos(angle)}px`,
-        left: `${center_x + radius_x * Math.sin(angle)}px`,
-        transform: 'translate(-50%, -50%)',
-      };
+    orderedPlayerIds.forEach((playerId, index) => {
+        if (playerCount === 4) {
+            positions[playerId] = fourPlayerPositions[index];
+        } else {
+            // Player 0 is at the bottom
+            if (index === 0) {
+                 positions[playerId] = { bottom: '20px', left: '50%', transform: 'translateX(-50%)' };
+            } else {
+                // Other players are arranged on the top semi-circle
+                const otherPlayerIndex = orderedPlayerIds.filter(id => id !== humanPlayerId).indexOf(playerId);
+                positions[playerId] = getCirclePosition(otherPlayerIndex + 1);
+            }
+        }
     });
 
     return positions;
-  }, [gameState.players, windowSize.width, windowSize.height]);
+  }, [gameState.players, gameState.playerCount]);
 
 
 
@@ -185,7 +190,7 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
          currentPlayerId: currentState.highestBid!.playerId,
      }
      
-     if (bidder?.id === humanPlayer.id) {
+     if (bidder?.id === currentPlayer.id) {
         setShowPartnerDialog(true);
      }
      toast({ title: "Partner Selection", description: `Waiting for ${bidder?.name} to select partners.`});
@@ -372,10 +377,12 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
   const { players, playerCount, currentPlayerId } = gameState;
   
   const renderPlayerArea = (player: Player) => {
+    const isCurrent = player.id === currentPlayer.id;
     return (
      <div className="flex flex-col items-center gap-2 relative">
+        {/* Opponent card backs */}
         <div className="relative h-16 flex items-center justify-center -mb-2">
-            {player.id !== currentPlayer.id && player.hand.map((_, idx) => (
+            {!isCurrent && player.hand.map((_, idx) => (
                 <div key={idx} className="absolute" style={{ 
                     transform: `translateX(${(idx - player.hand.length / 2) * 8}px) rotate(${(idx - player.hand.length/2) * 5}deg)`,
                     zIndex: idx,
@@ -495,7 +502,7 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
         </div>
 
         {/* Current Player's Hand */}
-        <div className="absolute bottom-[100px] left-0 right-0 flex justify-center items-end p-4" style={{ height: '180px' }}>
+        <div className="absolute bottom-[80px] left-0 right-0 flex justify-center items-end p-4" style={{ height: '180px' }}>
             <AnimatePresence>
             {currentPlayerHand.map((card, i) => (
               <motion.div
@@ -515,8 +522,8 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
                 <CardUI 
                   card={card} 
                   isFaceUp={true} 
-                  isPlayable={gameState.phase === 'playing' && !isProcessing && currentPlayer.id === gameState.currentPlayerId}
-                  onClick={() => gameState.phase === 'playing' && !isProcessing && currentPlayer.id === gameState.currentPlayerId && handlePlayCard(card, currentPlayer.id)} 
+                  isPlayable={gameState.phase === 'playing' && !isProcessing}
+                  onClick={() => gameState.phase === 'playing' && !isProcessing && handlePlayCard(card, currentPlayer.id)} 
                 />
               </motion.div>
             ))}
@@ -525,13 +532,13 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
         
         {/* User's Action Area */}
         <AnimatePresence>
-        {gameState.phase === 'bidding' && currentPlayer.id === gameState.currentPlayerId && !isProcessing && (
+        {gameState.phase === 'bidding' && !isProcessing && (
             <motion.div 
                 key="bidding-ui"
                 initial={{y:100, opacity:0}} animate={{y:0, opacity:1}} exit={{y:100, opacity:0}} 
-                className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-card p-4 rounded-lg shadow-lg flex items-center gap-4 border z-30"
+                className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-card p-4 rounded-lg shadow-lg flex items-center gap-4 border z-30"
             >
-                <h3 className="text-lg font-bold">Your Bid:</h3>
+                <h3 className="text-lg font-bold">{currentPlayer.name}'s Bid:</h3>
                 <Input type="number" value={bidAmount} onChange={e => setBidAmount(Number(e.target.value))} step={5} className="w-32" />
                 <Button onClick={() => handlePlaceBid(bidAmount, currentPlayerId)}>Place Bid</Button>
                 <Button variant="outline" onClick={() => handlePass(currentPlayerId)}>Pass</Button>
