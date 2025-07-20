@@ -342,10 +342,11 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
   if (!gameState || !currentPlayer) return <div>Loading Game...</div>;
 
   const { players, playerCount, currentPlayerId } = gameState;
+  const bidder = players.find(p => p.id === gameState.highestBid?.playerId);
 
   const renderPlayerArea = (player: Player) => (
      <div className="flex flex-col items-center gap-2">
-         { (
+         { player.id !== currentPlayerId && (
             <div className="relative h-16 flex items-center justify-center -mb-2">
                 {player.hand.map((_, idx) => (
                     <div key={idx} className="absolute" style={{ 
@@ -400,7 +401,7 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
         </AnimatePresence>
 
         {/* Other Players */}
-        {players.map((p) => (
+        {players.filter(p => p.id !== currentPlayerId).map((p) => (
           <motion.div 
             key={p.id}
             className="absolute"
@@ -457,8 +458,11 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
 
         {/* User's Hand & Area */}
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full flex flex-col items-center">
+           {/* Current player's main display */}
+            <div className="mb-4">{renderPlayerArea(currentPlayer)}</div>
+
            {/* Bidding UI for current player */}
-          {gameState.phase === 'bidding' && !isProcessing && (
+          {gameState.phase === 'bidding' && currentPlayerId === gameState.currentPlayerId && !isProcessing && (
               <motion.div initial={{y:50, opacity:0}} animate={{y:0, opacity:1}} className="bg-card p-4 rounded-t-lg shadow-lg flex items-center gap-4 mb-4 border-t border-x">
                   <h3 className="text-lg font-bold">{currentPlayer.name}'s Bid:</h3>
                   <Input type="number" value={bidAmount} onChange={e => setBidAmount(Number(e.target.value))} step={5} className="w-32" />
@@ -487,8 +491,8 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
                 <CardUI 
                   card={card} 
                   isFaceUp={true} 
-                  isPlayable={gameState.phase === 'playing' && !isProcessing}
-                  onClick={() => gameState.phase === 'playing' && !isProcessing && handlePlayCard(card, currentPlayer.id)} 
+                  isPlayable={gameState.phase === 'playing' && !isProcessing && currentPlayerId === gameState.currentPlayerId}
+                  onClick={() => gameState.phase === 'playing' && !isProcessing && currentPlayerId === gameState.currentPlayerId && handlePlayCard(card, currentPlayer.id)} 
                 />
               </motion.div>
             ))}
@@ -502,7 +506,7 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
             <DialogHeader>
               <DialogTitle>Select Trump and Partners</DialogTitle>
               <DialogDescription>
-                {players.find(p => p.id === gameState.highestBid?.playerId)?.name} won with {gameState.highestBid?.amount}. Time to choose!
+                {bidder?.name} won with {gameState.highestBid?.amount}. Time to choose!
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -531,7 +535,11 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
                       <SelectTrigger className="mb-2"><SelectValue placeholder={`Select partner card ${i+1}...`} /></SelectTrigger>
                       <SelectContent>
                       {gameState.deck
-                          .filter(c => !players.find(p => p.id === gameState.highestBid?.playerId)!.hand.find(hc => hc.id === c.id))
+                          .filter(c => {
+                              const bidderHand = bidder?.hand;
+                              if (!bidderHand) return true; // Don't filter if bidder isn't found
+                              return !bidderHand.find(hc => hc.id === c.id);
+                          })
                           .filter(c => !selectedPartners.includes(c.id) || selectedPartners[i] === c.id)
                           .sort((a,b) => (a.suit + a.rank).localeCompare(b.suit + b.rank))
                           .map(card => (
@@ -553,7 +561,7 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
         {/* Results Dialog */}
         <Dialog open={showResults} onOpenChange={setShowResults}>
           <DialogContent>
-              {gameState.phase === 'results' && gameState.team1Score > 0 && (
+              {gameState.phase === 'results' && gameState.highestBid && gameState.team1Score > 0 && (
                   <AnimatePresence>
                       {(gameState.team1Score >= gameState.highestBid!.amount) && 
                           <Confetti width={windowSize.width} height={windowSize.height} recycle={false} />
