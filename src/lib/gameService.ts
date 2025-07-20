@@ -1,33 +1,32 @@
 'use server';
 
 import { createDeck, dealCards, type GameState, type Player } from './game';
+import { kv } from '@vercel/kv';
 
-// This file simulates a "game server" or backend service.
-// It uses a simple in-memory Map to store game states. On a serverless
-// platform like Vercel, this map is NOT guaranteed to persist between
-// function calls, but for simple, short-lived games, it can work.
-// A more robust solution would use a proper database like Redis, Firebase, or Postgres.
+// This file uses Vercel KV as a persistent, serverless data store.
+// This is the correct way to handle shared state in a Vercel deployment.
 
-// A shared, in-memory store for all game states.
-// IMPORTANT: This is the critical part for making it work on Vercel.
-// We declare it once at the top level.
-const gameStore = new Map<string, GameState>();
-
-function generateGameId(): string {
+async function generateGameId(): Promise<string> {
     let id = '';
     // Omitted O, 0, I, L, 1 to reduce confusion
     const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; 
-    do {
+    let isUnique = false;
+    while (!isUnique) {
         id = '';
         for (let i = 0; i < 4; i++) {
             id += chars.charAt(Math.floor(Math.random() * chars.length));
         }
-    } while (gameStore.has(id)); // Ensure the ID is unique
+        // Check if the ID already exists in our KV store
+        const existingGame = await kv.get(`game:${id}`);
+        if (!existingGame) {
+            isUnique = true;
+        }
+    }
     return id;
 }
 
 export const createNewGame = async (playerCount: number, hostPlayerName: string): Promise<GameState> => {
-    const gameId = generateGameId();
+    const gameId = await generateGameId();
     const deck = createDeck(playerCount);
 
     const hostPlayer: Player = {
@@ -58,19 +57,19 @@ export const createNewGame = async (playerCount: number, hostPlayerName: string)
         turnHistory: [`Game created by ${hostPlayerName}`],
     };
 
-    gameStore.set(gameId, initialGameState);
-    console.log(`Game created: ${gameId}`, gameStore.get(gameId));
+    // Save the new game state to Vercel KV. TTL is 2 hours (7200s).
+    await kv.set(`game:${gameId}`, JSON.stringify(initialGameState), { ex: 7200 });
     
     return initialGameState;
 };
 
 export const joinGame = async (gameId: string, playerName: string): Promise<{updatedState: GameState, newPlayerId: number}> => {
-    const gameState = gameStore.get(gameId);
-    console.log(`Attempting to join game: ${gameId}. Found:`, gameState);
+    const gameJSON = await kv.get(`game:${gameId}`);
 
-    if (!gameState) {
+    if (!gameJSON) {
         throw new Error("Game not found. Please check the code.");
     }
+    const gameState = JSON.parse(gameJSON as string) as GameState;
 
     if (gameState.phase !== 'lobby') {
         throw new Error("This game has already started.");
@@ -94,33 +93,28 @@ export const joinGame = async (gameId: string, playerName: string): Promise<{upd
     gameState.players.push(newPlayer);
     gameState.turnHistory.push(`${playerName} joined the game.`);
 
-    // If the last player joined, deal the cards
     if (gameState.players.length === gameState.playerCount) {
         const dealtPlayers = dealCards(gameState.deck, gameState.players);
         gameState.players = dealtPlayers;
-        // The host will press start, so we don't change the phase here anymore.
-        // gameState.phase = 'bidding';
         gameState.turnHistory.push(`All players have joined. The host can now start the game.`);
     }
 
-    gameStore.set(gameId, gameState);
-    console.log(`Game state updated after join: ${gameId}`, gameStore.get(gameId));
-
+    await kv.set(`game:${gameId}`, JSON.stringify(gameState), { ex: 7200 });
 
     return { updatedState: gameState, newPlayerId };
 };
 
 export const getGameState = async (gameId: string): Promise<GameState | null> => {
-     const state = gameStore.get(gameId) || null;
-     console.log(`Getting state for ${gameId}. Found:`, state);
-     return state;
+     const stateJSON = await kv.get(`game:${gameId}`);
+     if (!stateJSON) return null;
+     return JSON.parse(stateJSON as string) as GameState;
 }
 
 export const updateGameState = async (newState: GameState): Promise<GameState> => {
-    if (!gameStore.has(newState.id)) {
+    const gameExists = await kv.get(`game:${newState.id}`);
+    if (!gameExists) {
         throw new Error("Game not found to update.");
     }
-    gameStore.set(newState.id, newState);
-    console.log(`Game state updated: ${newState.id}`, gameStore.get(newState.id));
+    await kv.set(`game:${newState.id}`, JSON.stringify(newState), { ex: 7200 });
     return newState;
 }
