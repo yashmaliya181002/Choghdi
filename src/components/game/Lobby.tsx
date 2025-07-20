@@ -24,7 +24,7 @@ export default function Lobby() {
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
 
-    const { myPeerId, status, role, gameState, hostGame, joinGame, updateGameState, broadcastGameState } = useGameConnection(playerName);
+    const { myPeerId, status, role, gameState, hostGame, joinGame, broadcastGameState } = useGameConnection(playerName);
 
     useEffect(() => {
         if (gameState?.phase && gameState.phase !== 'lobby') {
@@ -34,7 +34,7 @@ export default function Lobby() {
         }
     }, [gameState]);
 
-    const handleCreateGame = () => {
+    const handleCreateGame = async () => {
         if (!playerName.trim()) {
             toast({ variant: 'destructive', title: 'Please enter your name.' });
             return;
@@ -50,7 +50,7 @@ export default function Lobby() {
         };
         
         const initialGameState: GameState = {
-            id: myPeerId,
+            id: '', // This will be replaced by the 4-digit code from the service
             phase: 'lobby',
             playerCount,
             players: [hostPlayer],
@@ -67,18 +67,22 @@ export default function Lobby() {
             turnHistory: [`Game created by ${playerName}`],
         };
 
-        hostGame(initialGameState);
+        await hostGame(initialGameState);
         setView('lobby');
         setIsLoading(false);
     };
     
-    const handleJoinGame = () => {
+    const handleJoinGame = async () => {
         if (!playerName.trim() || !joinGameId.trim()) {
             toast({ variant: 'destructive', title: 'Please enter your name and a game code.' });
             return;
         }
+        if (!/^\d{4}$/.test(joinGameId)) {
+            toast({ variant: 'destructive', title: 'Invalid Code', description: 'Game code must be a 4-digit number.' });
+            return;
+        }
         setIsLoading(true);
-        joinGame(joinGameId);
+        await joinGame(joinGameId);
         // Transition to lobby will be handled by state updates from the host
         setView('lobby');
         setIsLoading(false);
@@ -109,7 +113,7 @@ export default function Lobby() {
 
     if (view === 'game' && gameState) {
         const localPlayer = gameState.players.find(p => p.peerId === myPeerId);
-        if (!localPlayer) return <div>Joining game...</div>
+        if (!localPlayer) return <div className="w-full h-screen flex items-center justify-center"><Loader2 className="animate-spin mr-2" /> Joining game...</div>
 
         return <GameBoard
             initialGameState={gameState}
@@ -133,8 +137,14 @@ export default function Lobby() {
                     <CardContent className="space-y-4">
                         <div className="flex items-center justify-center">
                             <div className="text-4xl font-mono tracking-widest bg-muted p-4 rounded-lg border flex items-center gap-4">
-                                <span>{gameState.id}</span>
-                                <Button variant="ghost" size="icon" onClick={copyGameId}><Copy className="w-6 h-6"/></Button>
+                                {gameState.id ? (
+                                    <>
+                                        <span>{gameState.id}</span>
+                                        <Button variant="ghost" size="icon" onClick={copyGameId}><Copy className="w-6 h-6"/></Button>
+                                    </>
+                                ) : (
+                                    <Loader2 className="animate-spin" />
+                                )}
                             </div>
                         </div>
 
@@ -143,7 +153,7 @@ export default function Lobby() {
                             <div className="space-y-1 rounded-md bg-muted p-3">
                                 {gameState.players.map(p => (
                                     <div key={p.id} className="flex items-center justify-between">
-                                        <span>{p.name}</span>
+                                        <span>{p.name} {p.peerId === myPeerId && '(You)'}</span>
                                         {p.id === 0 && <Badge>Host</Badge>}
                                     </div>
                                 ))}
@@ -184,7 +194,7 @@ export default function Lobby() {
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="player-count">Players</Label>
-                                <Select defaultValue={String(playerCount)} onValueChange={(val) => setPlayerCount(parseInt(val))}>
+                                <Select defaultValue={String(playerCount)} onValueChange={(val) => setPlayerCount(parseInt(val))} disabled={isLoading}>
                                     <SelectTrigger id="player-count">
                                         <SelectValue />
                                     </SelectTrigger>
@@ -208,7 +218,7 @@ export default function Lobby() {
                          <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="game-id">Game Code</Label>
-                                <Input id="game-id" placeholder="Paste code..." value={joinGameId} onChange={(e) => setJoinGameId(e.target.value)} />
+                                <Input id="game-id" placeholder="Enter 4-digit code..." value={joinGameId} onChange={(e) => setJoinGameId(e.target.value)} maxLength={4} />
                             </div>
                              <div className="flex flex-col justify-end">
                                 <Button variant="secondary" className="w-full h-10" onClick={handleJoinGame} disabled={isLoading || status !== 'connected'}>

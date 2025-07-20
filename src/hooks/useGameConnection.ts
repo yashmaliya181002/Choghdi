@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Peer, DataConnection } from 'peerjs';
 import { type GameState, type Player } from '@/lib/game';
 import { useToast } from './use-toast';
+import { createRoom, getPeerIdForRoom } from '@/lib/roomCodeService';
+
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 type PlayerRole = 'host' | 'peer' | 'none';
@@ -70,7 +72,7 @@ export const useGameConnection = (localPlayerName: string) => {
 
                     setGameState(newGameState);
 
-                    // Welcome the new player
+                    // Welcome the new player with the full state
                     connectionsRef.current[fromPeerId]?.send({ type: 'welcome', payload: newGameState });
                     
                     // Notify all other players
@@ -133,34 +135,56 @@ export const useGameConnection = (localPlayerName: string) => {
         };
     }, [initializePeer]);
     
-    const hostGame = (initialState: GameState) => {
-        setRole('host');
-        setGameState(initialState);
+    const hostGame = async (initialState: GameState) => {
+        if (!myPeerId) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not get a peer ID to host.'});
+            return;
+        }
+        try {
+            const roomCode = await createRoom(myPeerId);
+            setRole('host');
+            setGameState({ ...initialState, id: roomCode });
+        } catch (error) {
+            console.error(error);
+            toast({ variant: 'destructive', title: 'Could not create room', description: 'The server might be busy. Please try again.' });
+        }
     };
 
-    const joinGame = (hostPeerId: string) => {
+    const joinGame = async (roomCode: string) => {
         if (!peerRef.current || !myPeerId) {
             toast({ variant: 'destructive', title: 'Connection not ready', description: 'Please wait a moment and try again.'});
             return;
         }
 
-        const conn = peerRef.current.connect(hostPeerId);
-        setRole('peer');
+        try {
+            const hostPeerId = await getPeerIdForRoom(roomCode);
+            if (!hostPeerId) {
+                toast({ variant: 'destructive', title: 'Game not found', description: 'The code is invalid or the game has expired.' });
+                return;
+            }
 
-        conn.on('open', () => {
-            setConnections({ [hostPeerId]: conn });
-            console.log(`Connection opened to host ${hostPeerId}`);
-            // Announce presence to host
-            conn.send({ type: 'player_join_request', payload: { peerId: myPeerId, playerName: localPlayerName } });
-        });
-        
-        conn.on('data', (data) => handleIncomingMessage(data as Message, hostPeerId));
+            const conn = peerRef.current.connect(hostPeerId);
+            setRole('peer');
 
-        conn.on('error', (err) => {
-            console.error('Connection error:', err);
-            toast({ variant: 'destructive', title: 'Failed to Join', description: 'Could not connect to the host.' });
-            setRole('none');
-        });
+            conn.on('open', () => {
+                setConnections({ [hostPeerId]: conn });
+                console.log(`Connection opened to host ${hostPeerId}`);
+                // Announce presence to host
+                conn.send({ type: 'player_join_request', payload: { peerId: myPeerId, playerName: localPlayerName } });
+            });
+            
+            conn.on('data', (data) => handleIncomingMessage(data as Message, hostPeerId));
+
+            conn.on('error', (err) => {
+                console.error('Connection error:', err);
+                toast({ variant: 'destructive', title: 'Failed to Join', description: 'Could not connect to the host.' });
+                setRole('none');
+            });
+
+        } catch (error) {
+            console.error(error);
+            toast({ variant: 'destructive', title: 'Error joining game', description: 'Could not connect to the room service.' });
+        }
     };
     
     const broadcastGameState = (newState: GameState) => {
