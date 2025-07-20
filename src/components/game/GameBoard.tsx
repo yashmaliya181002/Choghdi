@@ -50,25 +50,39 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
   const { toast } = useToast();
   
   const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayerId)!;
+  const bidder = gameState.players.find(p => p.id === gameState.highestBid?.playerId);
 
   const playerPositions = useMemo(() => {
     const positions: { [key: number]: { top: string, left: string, transform: string } } = {};
-    const radiusX = Math.min(windowSize.width * 0.4, 450);
-    const radiusY = Math.min(windowSize.height * 0.35, 300);
-    const centerX = windowSize.width / 2;
-    const centerY = windowSize.height / 2 - 50;
+    const center_x = windowSize.width / 2;
+    const center_y = windowSize.height / 2;
+    const radius_x = windowSize.width * 0.4;
+    const radius_y = windowSize.height * 0.35;
     
+    const humanPlayerIndex = gameState.players.findIndex(p => p.id === currentPlayer.id);
+
     gameState.players.forEach((player, index) => {
+        // Position current player at the bottom
+        if (player.id === currentPlayer.id) {
+            positions[player.id] = {
+                top: `${windowSize.height - 180}px`,
+                left: `${center_x}px`,
+                transform: 'translate(-50%, -50%)',
+            }
+            return;
+        }
+
+        // Arrange other players around the table
         const angle = (index / gameState.playerCount) * 2 * Math.PI - Math.PI / 2;
         positions[player.id] = {
-            top: `${centerY + radiusY * Math.sin(angle)}px`,
-            left: `${centerX + radiusX * Math.cos(angle)}px`,
+            top: `${center_y + radius_y * Math.sin(angle)}px`,
+            left: `${center_x + radius_x * Math.cos(angle)}px`,
             transform: 'translate(-50%, -50%)',
         };
     });
 
     return positions;
-  }, [gameState.players, windowSize]);
+  }, [gameState.players, windowSize.width, windowSize.height, currentPlayer.id]);
 
 
   useEffect(() => {
@@ -263,7 +277,7 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
       
       const updatedPlayers = currentState.players.map(p => 
           p.id === winner.playerId 
-          ? {...p, collectedCards: [...p.collectedCards, ...collectedCards], tricksWon: p.tricksWon + 1 } 
+          ? {...p, collectedCards: [...p.collectedCards, ...collectedCards], tricksWon: (p.tricksWon || 0) + 1 } 
           : p
       );
       
@@ -342,37 +356,71 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
   if (!gameState || !currentPlayer) return <div>Loading Game...</div>;
 
   const { players, playerCount, currentPlayerId } = gameState;
-  const bidder = players.find(p => p.id === gameState.highestBid?.playerId);
+  
 
-  const renderPlayerArea = (player: Player) => (
-     <div className="flex flex-col items-center gap-2">
-         { player.id !== currentPlayerId && (
-            <div className="relative h-16 flex items-center justify-center -mb-2">
-                {player.hand.map((_, idx) => (
-                    <div key={idx} className="absolute" style={{ 
-                        transform: `translateX(${(idx - player.hand.length / 2) * 8}px) rotate(${(idx - player.hand.length/2) * 5}deg)`,
-                        zIndex: idx,
-                    }}>
-                    <CardUI className="!w-10 !h-14" />
-                    </div>
-                ))}
-            </div>
-         )}
-        <Avatar className={cn("border-4 transition-all duration-500", player.id === currentPlayerId ? 'border-accent' : 'border-transparent', player.id === lastTrickWinner?.id ? 'border-yellow-400 scale-110' : '')}>
-            <AvatarFallback>{player.name.charAt(0).toUpperCase()}</AvatarFallback>
-        </Avatar>
-        <Badge variant={player.id === currentPlayerId ? 'destructive' : 'secondary'} className="px-3 py-1 text-sm transition-all shadow-md">
-           {player.name}
-        </Badge>
-        <div className="flex gap-2">
-            {player.isBidder && <Badge><Crown className="w-3 h-3" /> </Badge>}
-            {player.isPartner && <Badge variant="secondary"><Users className="w-3 h-3"/></Badge>}
-            <Badge variant="outline" className="flex items-center gap-1">
-                <Trophy className="w-3 h-3 text-yellow-500"/> {player.tricksWon}
-            </Badge>
+  const renderPlayerArea = (player: Player, isCurrent: boolean) => {
+    const playerHand = isCurrent ? currentPlayer.hand : player.hand;
+    return (
+     <div className="flex flex-col items-center gap-2 relative">
+        <div className="relative h-16 flex items-center justify-center -mb-2">
+            {!isCurrent && player.hand.map((_, idx) => (
+                <div key={idx} className="absolute" style={{ 
+                    transform: `translateX(${(idx - player.hand.length / 2) * 8}px) rotate(${(idx - player.hand.length/2) * 5}deg)`,
+                    zIndex: idx,
+                }}>
+                <CardUI className="!w-10 !h-14" />
+                </div>
+            ))}
         </div>
+
+        <div className="flex flex-col items-center gap-2 p-2 rounded-lg bg-card/70 backdrop-blur-sm border shadow-lg">
+            <Avatar className={cn("border-4 transition-all duration-500", player.id === currentPlayerId ? 'border-accent' : 'border-transparent', player.id === lastTrickWinner?.id ? 'border-yellow-400 scale-110' : '')}>
+                <AvatarFallback>{player.name.charAt(0).toUpperCase()}</AvatarFallback>
+            </Avatar>
+            <Badge variant={player.id === currentPlayerId ? 'destructive' : 'secondary'} className="px-3 py-1 text-sm transition-all shadow-md">
+               {player.name}
+            </Badge>
+            <div className="flex gap-2 items-center">
+                {player.isBidder && <Badge title="Bidder"><Crown className="w-4 h-4" /> </Badge>}
+                {player.isPartner && <Badge variant="secondary" title="Partner"><Users className="w-4 h-4"/></Badge>}
+                <Badge variant="outline" className="flex items-center gap-1.5 px-2">
+                    <Trophy className="w-3 h-3 text-yellow-500"/> {player.tricksWon || 0}
+                </Badge>
+            </div>
+        </div>
+
+        {isCurrent && (
+            <div className="absolute bottom-[-220px] flex justify-center items-end p-4" style={{ minHeight: '220px', width: '100vw' }}>
+            <AnimatePresence>
+            {playerHand.map((card, i) => (
+              <motion.div
+                key={card.id}
+                initial={{ opacity: 0, y: 50 }}
+                animate={{ 
+                    opacity: 1, 
+                    y: 0, 
+                    x: (i - playerHand.length / 2) * 40,
+                    rotate: (i - playerHand.length / 2) * 4
+                }}
+                exit={{ opacity: 0, y: 100, x: (i - playerHand.length / 2) * 40, rotate: 0 }}
+                transition={{ type: 'spring', stiffness: 200, damping: 25, delay: i * 0.05 }}
+                style={{ zIndex: i }}
+                className="absolute"
+              >
+                <CardUI 
+                  card={card} 
+                  isFaceUp={true} 
+                  isPlayable={gameState.phase === 'playing' && !isProcessing && player.id === gameState.currentPlayerId}
+                  onClick={() => gameState.phase === 'playing' && !isProcessing && player.id === gameState.currentPlayerId && handlePlayCard(card, player.id)} 
+                />
+              </motion.div>
+            ))}
+            </AnimatePresence>
+            </div>
+        )}
      </div>
-  );
+    )
+  };
 
   return (
       <div className="relative w-full h-screen overflow-hidden bg-gradient-to-br from-background to-purple-100 p-4 font-body">
@@ -400,105 +448,83 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
         )}
         </AnimatePresence>
 
-        {/* Other Players */}
-        {players.filter(p => p.id !== currentPlayerId).map((p) => (
+        {/* Players */}
+        {players.map((p) => (
           <motion.div 
             key={p.id}
-            className="absolute"
+            className="absolute z-10"
             initial={{opacity: 0}}
             animate={{ opacity: 1, ...(playerPositions[p.id] || {}) }}
             transition={{duration: 0.5}}
           >
-            {renderPlayerArea(p)}
+            {renderPlayerArea(p, p.id === currentPlayerId)}
           </motion.div>
         ))}
 
         {/* Table Center */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center gap-4">
-          <AnimatePresence>
-          {gameState.phase === 'playing' && !showLastTrick && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
+            {/* The Table */}
+            <div className="relative rounded-full bg-green-800/90 shadow-2xl border-[16px] border-amber-800" style={{width: '400px', height: '400px'}}>
+                <div className="absolute inset-0 rounded-full bg-green-900/50" />
+
+                 <AnimatePresence>
+                 {gameState.phase === 'playing' && !showLastTrick && (
+                    <motion.div 
+                    key="trick-area"
+                    initial={{opacity: 0, scale: 0.8}}
+                    animate={{opacity: 1, scale: 1}}
+                    exit={{opacity: 0, scale: 0.8}}
+                    className="absolute inset-0 flex items-center justify-center"
+                    >
+                    <AnimatePresence>
+                    {gameState.currentTrick.cards.map(({card, playerId}, index) => (
+                        <motion.div 
+                            key={card.id} 
+                            className="absolute" 
+                            initial={{ opacity: 0, scale: 0.5, y: -20 }}
+                            animate={{ 
+                                opacity: 1, 
+                                scale: 1, 
+                                rotate: (index * 360/playerCount) + 15,
+                                x: Math.cos((index / playerCount) * 2 * Math.PI - Math.PI / 2) * 60,
+                                y: Math.sin((index / playerCount) * 2 * Math.PI - Math.PI / 2) * 60,
+                            }}
+                            exit={{ opacity: 0, scale: 0.5, y: 50, transition: { duration: 0.3 } }}
+                            transition={{ type: 'spring', stiffness: 300, damping: 20}}
+                        >
+                            <CardUI card={card} isFaceUp={true} className="!w-20 !h-28" />
+                        </motion.div>
+                    ))}
+                    </AnimatePresence>
+                    </motion.div>
+                )}
+                </AnimatePresence>
+
+                {gameState.phase === 'bidding' && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4 bg-black/20 rounded-full">
+                        <p className="text-lg font-semibold text-white">Bidding Phase</p>
+                        <p className="text-white/80 animate-pulse">Waiting for {currentPlayer.name} to bid...</p>
+                        {gameState.highestBid && <p className="text-white">Current bid: <span className="font-bold text-yellow-300">{gameState.highestBid.amount}</span> by {players.find(p => p.id === gameState.highestBid.playerId)?.name}</p>}
+                    </div>
+                )}
+            </div>
+        </div>
+
+        {/* User's Action Area */}
+        <AnimatePresence>
+        {gameState.phase === 'bidding' && !isProcessing && (
             <motion.div 
-              key="trick-area"
-              initial={{opacity: 0, scale: 0.8}}
-              animate={{opacity: 1, scale: 1}}
-              exit={{opacity: 0, scale: 0.8}}
-              className="relative flex items-center justify-center w-80 h-48 bg-black/10 rounded-2xl border-2 border-dashed border-white/20 p-4"
+                key="bidding-ui"
+                initial={{y:100, opacity:0}} animate={{y:0, opacity:1}} exit={{y:100, opacity:0}} 
+                className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-card p-4 rounded-lg shadow-lg flex items-center gap-4 border z-30"
             >
-              <AnimatePresence>
-              {gameState.currentTrick.cards.map(({card, playerId}, index) => (
-                  <motion.div 
-                    key={card.id} 
-                    className="absolute" 
-                    initial={{ opacity: 0, scale: 0.5, y: -20 }}
-                    animate={{ 
-                        opacity: 1, 
-                        scale: 1, 
-                        rotate: (index - gameState.currentTrick.cards.length / 2) * 8,
-                        x: (index - gameState.currentTrick.cards.length / 2) * 40,
-                    }}
-                    exit={{ opacity: 0, scale: 0.5, y: 50, transition: { duration: 0.3 } }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 20}}
-                  >
-                      <CardUI card={card} isFaceUp={true} className="!w-20 !h-28" />
-                  </motion.div>
-              ))}
-              </AnimatePresence>
+                <h3 className="text-lg font-bold">{currentPlayer.name}'s Bid:</h3>
+                <Input type="number" value={bidAmount} onChange={e => setBidAmount(Number(e.target.value))} step={5} className="w-32" />
+                <Button onClick={() => handlePlaceBid(bidAmount, currentPlayerId)}>Place Bid</Button>
+                <Button variant="outline" onClick={() => handlePass(currentPlayerId)}>Pass</Button>
             </motion.div>
-          )}
-          </AnimatePresence>
-
-           {gameState.phase === 'bidding' && (
-                <div className="text-center p-4 bg-card/80 rounded-lg shadow-lg">
-                    <p className="text-lg font-semibold">Bidding Phase</p>
-                    <p className="text-muted-foreground animate-pulse">Waiting for {players[currentPlayerId].name} to bid...</p>
-                    {gameState.highestBid && <p>Current bid: <span className="font-bold text-primary">{gameState.highestBid.amount}</span> by {players[gameState.highestBid.playerId].name}</p>}
-                </div>
-            )}
-        </div>
-
-        {/* User's Hand & Area */}
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full flex flex-col items-center">
-           {/* Current player's main display */}
-            <div className="mb-4">{renderPlayerArea(currentPlayer)}</div>
-
-           {/* Bidding UI for current player */}
-          {gameState.phase === 'bidding' && currentPlayerId === gameState.currentPlayerId && !isProcessing && (
-              <motion.div initial={{y:50, opacity:0}} animate={{y:0, opacity:1}} className="bg-card p-4 rounded-t-lg shadow-lg flex items-center gap-4 mb-4 border-t border-x">
-                  <h3 className="text-lg font-bold">{currentPlayer.name}'s Bid:</h3>
-                  <Input type="number" value={bidAmount} onChange={e => setBidAmount(Number(e.target.value))} step={5} className="w-32" />
-                  <Button onClick={() => handlePlaceBid(bidAmount, currentPlayerId)}>Place Bid</Button>
-                  <Button variant="outline" onClick={() => handlePass(currentPlayerId)}>Pass</Button>
-              </motion.div>
-          )}
-
-          <div className="flex justify-center items-end p-4" style={{ minHeight: '220px' }}>
-            <AnimatePresence>
-            {currentPlayer.hand.map((card, i) => (
-              <motion.div
-                key={card.id}
-                initial={{ opacity: 0, y: 50 }}
-                animate={{ 
-                    opacity: 1, 
-                    y: 0, 
-                    x: (i - currentPlayer.hand.length / 2) * 40,
-                    rotate: (i - currentPlayer.hand.length / 2) * 4
-                }}
-                exit={{ opacity: 0, y: 100, x: (i - currentPlayer.hand.length / 2) * 40, rotate: 0 }}
-                transition={{ type: 'spring', stiffness: 200, damping: 25, delay: i * 0.05 }}
-                style={{ zIndex: i }}
-                className="absolute bottom-20"
-              >
-                <CardUI 
-                  card={card} 
-                  isFaceUp={true} 
-                  isPlayable={gameState.phase === 'playing' && !isProcessing && currentPlayerId === gameState.currentPlayerId}
-                  onClick={() => gameState.phase === 'playing' && !isProcessing && currentPlayerId === gameState.currentPlayerId && handlePlayCard(card, currentPlayer.id)} 
-                />
-              </motion.div>
-            ))}
-            </AnimatePresence>
-          </div>
-        </div>
+        )}
+        </AnimatePresence>
         
         {/* Partner Selection Dialog */}
         <Dialog open={showPartnerDialog} onOpenChange={setShowPartnerDialog}>
