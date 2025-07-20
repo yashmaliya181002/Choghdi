@@ -11,35 +11,46 @@ import GameBoard from "./GameBoard";
 import { createInitialGameState } from "@/lib/gameService";
 import type { GameState } from "@/lib/game";
 import { Badge } from "../ui/badge";
+import { User } from "lucide-react";
 
 export default function Lobby() {
-    const [view, setView] = useState<'main' | 'create' | 'join' | 'game'>('main');
-    const [playerName, setPlayerName] = useState('');
+    const [view, setView] = useState<'main' | 'create' | 'name-players' | 'join' | 'game'>('main');
+    const [playerNames, setPlayerNames] = useState<string[]>(['']);
     const [playerCount, setPlayerCount] = useState(4);
     const [gameCode, setGameCode] = useState('');
     const [gameState, setGameState] = useState<GameState | null>(null);
-    const [localPlayerId, setLocalPlayerId] = useState<number>(0);
     const { toast } = useToast();
 
-    const handleCreateGame = () => {
-        if (!playerName.trim()) {
+    const handleGoToNamePlayers = () => {
+        if (!playerNames[0] || !playerNames[0].trim()) {
             toast({ variant: 'destructive', title: 'Please enter your name.' });
             return;
         }
-        // In this local-only version, we create a game with placeholder players
-        const initialPlayers = [{ id: 0, name: playerName }];
-        for (let i = 1; i < playerCount; i++) {
-            initialPlayers.push({ id: i, name: `Player ${i + 1}` });
+        setPlayerNames(Array(playerCount).fill('').map((_, i) => i === 0 ? playerNames[0] : ''));
+        setView('name-players');
+    };
+
+    const handlePlayerNameChange = (index: number, name: string) => {
+        const newPlayerNames = [...playerNames];
+        newPlayerNames[index] = name;
+        setPlayerNames(newPlayerNames);
+    };
+
+    const handleStartGame = () => {
+        if (playerNames.some(name => !name.trim())) {
+            toast({ variant: 'destructive', title: 'Please enter a name for every player.' });
+            return;
         }
+        
+        const initialPlayers = playerNames.map((name, i) => ({ id: i, name }));
         
         const newGame = createInitialGameState(playerCount, initialPlayers);
         setGameState(newGame);
-        setLocalPlayerId(0); // The creator is always player 0
         setView('game');
     };
 
     const handleJoinGame = () => {
-        if (!playerName.trim()) {
+        if (!playerNames[0] || !playerNames[0].trim()) {
             toast({ variant: 'destructive', title: 'Please enter your name.' });
             return;
         }
@@ -52,7 +63,7 @@ export default function Lobby() {
     };
 
     if (view === 'game' && gameState) {
-        return <GameBoard initialGameState={gameState} localPlayerId={localPlayerId} />;
+        return <GameBoard initialGameState={gameState} />;
     }
 
     return (
@@ -71,11 +82,11 @@ export default function Lobby() {
                          <motion.div key="main" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }} className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="player-name">Your Name</Label>
-                                <Input id="player-name" placeholder="Enter your name..." value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
+                                <Input id="player-name" placeholder="Enter your name..." value={playerNames[0]} onChange={(e) => handlePlayerNameChange(0, e.target.value)} />
                             </div>
                              <div className="flex flex-col space-y-2">
-                                <Button className="w-full h-12 text-lg" onClick={() => playerName.trim() ? setView('create') : toast({variant: 'destructive', title: 'Please enter your name.'})}>Create Table</Button>
-                                <Button variant="secondary" className="w-full h-12 text-lg" onClick={() => playerName.trim() ? setView('join') : toast({variant: 'destructive', title: 'Please enter your name.'})}>Join Table</Button>
+                                <Button className="w-full h-12 text-lg" onClick={() => playerNames[0].trim() ? setView('create') : toast({variant: 'destructive', title: 'Please enter your name.'})}>Create Table</Button>
+                                <Button variant="secondary" className="w-full h-12 text-lg" onClick={() => playerNames[0].trim() ? setView('join') : toast({variant: 'destructive', title: 'Please enter your name.'})}>Join Table</Button>
                              </div>
                          </motion.div>
                     )}
@@ -91,10 +102,31 @@ export default function Lobby() {
                                     {[4, 5, 6, 7, 8].map(n => <SelectItem key={n} value={String(n)}>{n} Players</SelectItem>)}
                                     </SelectContent>
                                 </Select>
-                                <p className="text-xs text-muted-foreground pt-1">You will control all players for testing.</p>
                             </div>
-                            <Button className="w-full" onClick={handleCreateGame}>Start Local Game</Button>
+                            <Button className="w-full" onClick={handleGoToNamePlayers}>Set Up Table</Button>
                             <Button variant="link" onClick={() => setView('main')}>Back</Button>
+                        </motion.div>
+                    )}
+                    {view === 'name-players' && (
+                        <motion.div key="name-players" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }} className="space-y-4">
+                            <CardTitle>Name Your Players</CardTitle>
+                            <CardDescription>You'll be controlling all of them for this local game.</CardDescription>
+                             <div className="space-y-3 pt-2">
+                                {playerNames.map((name, index) => (
+                                    <div key={index} className="flex items-center gap-3">
+                                        <Label htmlFor={`p${index}-name`} className="w-20">Player {index + 1}</Label>
+                                        <Input 
+                                          id={`p${index}-name`} 
+                                          placeholder={`Enter name for Player ${index + 1}`} 
+                                          value={name}
+                                          onChange={e => handlePlayerNameChange(index, e.target.value)}
+                                          disabled={index === 0}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                            <Button className="w-full" onClick={handleStartGame}>Start Game</Button>
+                            <Button variant="link" onClick={() => setView('create')}>Back</Button>
                         </motion.div>
                     )}
                     {view === 'join' && (

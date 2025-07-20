@@ -33,10 +33,9 @@ const SuitSelectIcon = ({ suit }: { suit: Card['suit'] }) => {
 
 type GameBoardProps = {
     initialGameState: GameState;
-    localPlayerId: number;
 };
 
-export default function GameBoard({ initialGameState, localPlayerId }: GameBoardProps) {
+export default function GameBoard({ initialGameState }: GameBoardProps) {
   const [gameState, setGameState] = useState<GameState>(initialGameState);
   const [bidAmount, setBidAmount] = useState(120);
   const [showPartnerDialog, setShowPartnerDialog] = useState(false);
@@ -50,38 +49,26 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
 
   const { toast } = useToast();
   
-  const me = gameState.players.find(p => p.id === localPlayerId)!;
   const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayerId)!;
 
   const playerPositions = useMemo(() => {
-    if (!gameState) return [];
-    
-    // Arrange players around the 'me' player
-    const myIdx = gameState.players.findIndex(p => p.id === localPlayerId);
-    const reorderedPlayers = [...gameState.players.slice(myIdx), ...gameState.players.slice(0, myIdx)];
-    const otherPlayers = reorderedPlayers.filter(p => p.id !== localPlayerId);
-
-    const positions: {[key: number]: { top: string, left: string }} = {};
+    const positions: { [key: number]: { top: string, left: string, transform: string } } = {};
     const radiusX = Math.min(windowSize.width * 0.4, 450);
-    const radiusY = Math.min(windowSize.height * 0.35, 280);
+    const radiusY = Math.min(windowSize.height * 0.35, 300);
     const centerX = windowSize.width / 2;
     const centerY = windowSize.height / 2 - 50;
     
-    // Place other players in a circle
-    const angleStep = Math.PI * 2 / (gameState.playerCount);
-
-    reorderedPlayers.forEach((player, index) => {
-        if(player.id === localPlayerId) return;
-
-        const angle = -Math.PI / 2 + index * angleStep;
+    gameState.players.forEach((player, index) => {
+        const angle = (index / gameState.playerCount) * 2 * Math.PI - Math.PI / 2;
         positions[player.id] = {
             top: `${centerY + radiusY * Math.sin(angle)}px`,
             left: `${centerX + radiusX * Math.cos(angle)}px`,
+            transform: 'translate(-50%, -50%)',
         };
     });
 
     return positions;
-  }, [gameState.players, localPlayerId, windowSize]);
+  }, [gameState.players, windowSize]);
 
 
   useEffect(() => {
@@ -172,13 +159,7 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
          currentPlayerId: currentState.highestBid!.playerId,
      }
      
-     // The bidder is now the current player, check if it's "me" to show dialog
-     if (finalState.currentPlayerId === localPlayerId) {
-        setShowPartnerDialog(true);
-     } else {
-        setShowPartnerDialog(true); // Now everyone can see who is selecting
-     }
-     
+     setShowPartnerDialog(true);
      toast({ title: "Partner Selection", description: `Waiting for ${bidder?.name} to select partners.`});
      return finalState;
   };
@@ -358,14 +339,13 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
     setShowResults(false);
   }
 
-  if (!gameState || !me) return <div>Loading Game...</div>;
+  if (!gameState || !currentPlayer) return <div>Loading Game...</div>;
 
   const { players, playerCount, currentPlayerId } = gameState;
-  const otherPlayers = players.filter(p => p.id !== localPlayerId);
 
   const renderPlayerArea = (player: Player) => (
      <div className="flex flex-col items-center gap-2">
-         {player.id !== localPlayerId && (
+         { (
             <div className="relative h-16 flex items-center justify-center -mb-2">
                 {player.hand.map((_, idx) => (
                     <div key={idx} className="absolute" style={{ 
@@ -420,10 +400,10 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
         </AnimatePresence>
 
         {/* Other Players */}
-        {otherPlayers.map((p) => (
+        {players.map((p) => (
           <motion.div 
             key={p.id}
-            className="absolute -translate-x-1/2 -translate-y-1/2"
+            className="absolute"
             initial={{opacity: 0}}
             animate={{ opacity: 1, ...(playerPositions[p.id] || {}) }}
             transition={{duration: 0.5}}
@@ -468,6 +448,7 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
 
            {gameState.phase === 'bidding' && (
                 <div className="text-center p-4 bg-card/80 rounded-lg shadow-lg">
+                    <p className="text-lg font-semibold">Bidding Phase</p>
                     <p className="text-muted-foreground animate-pulse">Waiting for {players[currentPlayerId].name} to bid...</p>
                     {gameState.highestBid && <p>Current bid: <span className="font-bold text-primary">{gameState.highestBid.amount}</span> by {players[gameState.highestBid.playerId].name}</p>}
                 </div>
@@ -478,7 +459,7 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full flex flex-col items-center">
            {/* Bidding UI for current player */}
           {gameState.phase === 'bidding' && !isProcessing && (
-              <motion.div initial={{y:50, opacity:0}} animate={{y:0, opacity:1}} className="bg-card p-4 rounded-t-lg shadow-lg flex items-center gap-4">
+              <motion.div initial={{y:50, opacity:0}} animate={{y:0, opacity:1}} className="bg-card p-4 rounded-t-lg shadow-lg flex items-center gap-4 mb-4 border-t border-x">
                   <h3 className="text-lg font-bold">{currentPlayer.name}'s Bid:</h3>
                   <Input type="number" value={bidAmount} onChange={e => setBidAmount(Number(e.target.value))} step={5} className="w-32" />
                   <Button onClick={() => handlePlaceBid(bidAmount, currentPlayerId)}>Place Bid</Button>
@@ -488,17 +469,17 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
 
           <div className="flex justify-center items-end p-4" style={{ minHeight: '220px' }}>
             <AnimatePresence>
-            {me.hand.map((card, i) => (
+            {currentPlayer.hand.map((card, i) => (
               <motion.div
                 key={card.id}
                 initial={{ opacity: 0, y: 50 }}
                 animate={{ 
                     opacity: 1, 
                     y: 0, 
-                    x: (i - me.hand.length / 2) * 40,
-                    rotate: (i - me.hand.length / 2) * 4
+                    x: (i - currentPlayer.hand.length / 2) * 40,
+                    rotate: (i - currentPlayer.hand.length / 2) * 4
                 }}
-                exit={{ opacity: 0, y: 100, x: (i - me.hand.length / 2) * 40, rotate: 0 }}
+                exit={{ opacity: 0, y: 100, x: (i - currentPlayer.hand.length / 2) * 40, rotate: 0 }}
                 transition={{ type: 'spring', stiffness: 200, damping: 25, delay: i * 0.05 }}
                 style={{ zIndex: i }}
                 className="absolute bottom-20"
@@ -506,15 +487,12 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
                 <CardUI 
                   card={card} 
                   isFaceUp={true} 
-                  isPlayable={gameState.phase === 'playing' && currentPlayerId === me.id && !isProcessing}
-                  onClick={() => gameState.phase === 'playing' && !isProcessing && handlePlayCard(card, me.id)} 
+                  isPlayable={gameState.phase === 'playing' && !isProcessing}
+                  onClick={() => gameState.phase === 'playing' && !isProcessing && handlePlayCard(card, currentPlayer.id)} 
                 />
               </motion.div>
             ))}
             </AnimatePresence>
-          </div>
-          <div className="bg-card/80 backdrop-blur-sm p-3 rounded-t-lg shadow-inner flex items-center gap-4 border-t border-x">
-              {renderPlayerArea(me)}
           </div>
         </div>
         
@@ -524,13 +502,13 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
             <DialogHeader>
               <DialogTitle>Select Trump and Partners</DialogTitle>
               <DialogDescription>
-                {players.find(p => p.id === gameState.highestBid?.playerId)?.name} won with {gameState.highestBid?.amount}.
+                {players.find(p => p.id === gameState.highestBid?.playerId)?.name} won with {gameState.highestBid?.amount}. Time to choose!
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div>
                 <Label className="font-bold">Trump Suit</Label>
-                <Select onValueChange={(v: Card['suit']) => setSelectedTrump(v)} disabled={currentPlayerId !== gameState.highestBid?.playerId}>
+                <Select onValueChange={(v: Card['suit']) => setSelectedTrump(v)}>
                   <SelectTrigger><SelectValue placeholder="Select a suit..." /></SelectTrigger>
                   <SelectContent>
                     {(['spades', 'hearts', 'clubs', 'diamonds'] as const).map(suit => (
@@ -549,11 +527,11 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
                       const newPartners = [...selectedPartners];
                       newPartners[i] = val;
                       setSelectedPartners(Array.from(new Set(newPartners)));
-                  }} disabled={currentPlayerId !== gameState.highestBid?.playerId}>
+                  }}>
                       <SelectTrigger className="mb-2"><SelectValue placeholder={`Select partner card ${i+1}...`} /></SelectTrigger>
                       <SelectContent>
                       {gameState.deck
-                          .filter(c => !me.hand.find(hc => hc.id === c.id))
+                          .filter(c => !players.find(p => p.id === gameState.highestBid?.playerId)!.hand.find(hc => hc.id === c.id))
                           .filter(c => !selectedPartners.includes(c.id) || selectedPartners[i] === c.id)
                           .sort((a,b) => (a.suit + a.rank).localeCompare(b.suit + b.rank))
                           .map(card => (
@@ -567,7 +545,7 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={handleConfirmPartners} disabled={currentPlayerId !== gameState.highestBid?.playerId}>Confirm and Start Game</Button>
+              <Button onClick={handleConfirmPartners}>Confirm and Start Game</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
