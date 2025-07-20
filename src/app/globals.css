@@ -72,4 +72,14 @@
     background-position: center;
     background-repeat: no-repeat;
   }
+
+  .bg-gamemat {
+    background-color: #166534; /* A nice green */
+    background-image:
+      radial-gradient(ellipse at center, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.5) 90%),
+      url("https://placehold.co/1920x1080/166534/FFFFFF.png?text=.");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
 }

@@ -153,12 +153,12 @@ export default function Lobby() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="flex flex-col items-center justify-center gap-2">
-                             <Label>Share Link</Label>
+                             <Label>Share Game ID</Label>
                             <div className="text-sm font-mono tracking-widest bg-muted/50 p-2 rounded-lg border w-full text-center truncate">
-                               {`${window.location.origin}${window.location.pathname}?join=${gameState.hostPeerId}`}
+                               {gameState.hostPeerId}
                             </div>
                             <Button variant="outline" onClick={copyGameLink} className="w-full">
-                               <Copy className="mr-2" /> Copy Invite Link
+                               <Copy className="mr-2" /> Copy Game ID
                             </Button>
                         </div>
 
@@ -187,52 +187,50 @@ export default function Lobby() {
     }
 
     return (
-        <div className="w-full h-screen flex items-center justify-center bg-lobby p-4 overflow-hidden" data-ai-hint="casino table">
+        <div className="w-full h-screen flex items-center justify-center bg-gamemat p-4 overflow-hidden" data-ai-hint="poker table cards chips">
             <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5 }}
-                className="relative w-full max-w-md"
+                className="relative w-full max-w-lg"
             >
                 {/* Decorative cards */}
                 <motion.div 
                     initial={{ y: 0, rotate: -15 }}
                     animate={{ y: -10, rotate: -20 }}
                     transition={{ type: 'spring', stiffness: 100, repeat: Infinity, repeatType: 'reverse', duration: 2}}
-                    className="absolute -top-20 -left-24"
+                    className="absolute -top-16 -left-28 z-0"
                 >
-                    <CardUI card={{id: 'AS', suit: 'spades', rank: 'A'}} isFaceUp={true} className="!w-28 !h-40" />
+                    <CardUI card={{id: 'AS', suit: 'spades', rank: 'A'}} isFaceUp={true} className="!w-32 !h-44 shadow-2xl" />
                 </motion.div>
                 <motion.div
                      initial={{ y: 0, rotate: 10 }}
                      animate={{ y: -10, rotate: 15 }}
                      transition={{ type: 'spring', stiffness: 100, repeat: Infinity, repeatType: 'reverse', duration: 2.2, delay: 0.5}}
-                     className="absolute -bottom-24 -right-20"
+                     className="absolute -bottom-20 -right-24 z-0"
                 >
-                    <CardUI card={{id: 'KH', suit: 'hearts', rank: 'K'}} isFaceUp={true} className="!w-28 !h-40" />
+                    <CardUI card={{id: 'KH', suit: 'hearts', rank: 'K'}} isFaceUp={true} className="!w-32 !h-44 shadow-2xl" />
                 </motion.div>
-
-
-            <Card className="shadow-2xl bg-card/70 backdrop-blur-md border-white/20 text-white">
-                <CardHeader className="text-center">
-                    <CardTitle className="text-5xl font-bold text-white drop-shadow-lg flex items-center justify-center gap-2">
-                        Kaali 3 <SpadeIcon className="w-10 h-10 text-white"/> 250
-                    </CardTitle>
-                    <CardDescription className="text-xl text-amber-300 font-semibold tracking-wider">Play Bid Enjoy</CardDescription>
-                </CardHeader>
-                <CardContent>
-                     <motion.div key="main" className="space-y-4">
+                
+                <div className="relative z-10 w-[500px] h-[500px] bg-white/20 backdrop-blur-md rounded-full flex flex-col items-center justify-center p-8 shadow-2xl border-4 border-white/30">
+                    <div className="text-center">
+                        <h1 className="text-5xl font-black text-foreground drop-shadow-lg flex items-center justify-center gap-2">
+                            Kaali 3 <SpadeIcon className="w-10 h-10 text-foreground"/> 250
+                        </h1>
+                        <p className="text-xl text-foreground/80 font-semibold tracking-wider mt-1">Play Bid Enjoy</p>
+                    </div>
+                    <div className="w-full max-w-sm mt-8 space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="player-name" className="text-white">Your Name</Label>
-                            <Input id="player-name" placeholder="Enter your name..." value={playerName} onChange={(e) => setPlayerName(e.target.value)} className="bg-white/10 border-white/30 text-white placeholder:text-gray-300"/>
+                            <Label htmlFor="player-name" className="text-foreground/90">Your Name</Label>
+                            <Input id="player-name" placeholder="Enter your name..." value={playerName} onChange={(e) => setPlayerName(e.target.value)} className="bg-white/20 border-black/20 text-black placeholder:text-gray-600 focus:bg-white/30"/>
                         </div>
                         {status === 'connecting' && <div className="flex items-center justify-center text-muted-foreground"><Loader2 className="mr-2 animate-spin"/>Connecting...</div>}
                         
                         <div className="flex items-end gap-4">
                             <div className="space-y-2 flex-grow">
-                                <Label htmlFor="player-count" className="text-white">Players</Label>
+                                <Label htmlFor="player-count" className="text-foreground/90">Players</Label>
                                 <Select defaultValue={String(playerCount)} onValueChange={(val) => setPlayerCount(parseInt(val))} disabled={isLoading}>
-                                    <SelectTrigger id="player-count" className="bg-white/10 border-white/30 text-white">
+                                    <SelectTrigger id="player-count" className="bg-white/20 border-black/20 text-black">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -246,23 +244,22 @@ export default function Lobby() {
                         </div>
                         
                         <div className="relative my-4">
-                            <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-white/30" /></div>
-                            <div className="relative flex justify-center text-xs uppercase"><span className="bg-gray-800 px-2 text-muted-foreground">Or</span></div>
+                            <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-black/20" /></div>
+                            <div className="relative flex justify-center text-xs uppercase"><span className="bg-white/20 backdrop-blur-md px-2 text-foreground/80 rounded-full">Or</span></div>
                         </div>
 
                          <div className="flex items-end gap-4">
                             <div className="space-y-2 flex-grow">
-                                <Label htmlFor="game-id" className="text-white">Game Code</Label>
-                                <Input id="game-id" placeholder="Enter game code from link..." value={joinGameId} onChange={(e) => setJoinGameId(e.target.value)} className="bg-white/10 border-white/30 text-white placeholder:text-gray-300" />
+                                <Label htmlFor="game-id" className="text-foreground/90">Game Code</Label>
+                                <Input id="game-id" placeholder="Enter game code from host..." value={joinGameId} onChange={(e) => setJoinGameId(e.target.value)} className="bg-white/20 border-black/20 text-black placeholder:text-gray-600 focus:bg-white/30" />
                             </div>
                              <Button variant="secondary" className="w-full h-10 flex-[2]" onClick={handleJoinGame} disabled={isLoading || status !== 'connected' || !playerName || !joinGameId}>
                                 Join Game
                              </Button>
                          </div>
-                         <p className="text-xs text-center text-muted-foreground pt-2">To join, paste the host's full ID or the ID from their share link.</p>
-                     </motion.div>
-                </CardContent>
-            </Card>
+                         <p className="text-xs text-center text-foreground/70 pt-2">To join, paste the host's full ID they provide.</p>
+                     </div>
+                </div>
             </motion.div>
         </div>
     );
