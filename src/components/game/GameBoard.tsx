@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { createDeck, dealCards, type GameState, type Player, type Card, getNumberOfPartners, getCardPoints } from '@/lib/game';
+import { createDeck, dealCards, type GameState, type Player, type Card, getNumberOfPartners, getCardPoints, Rank } from '@/lib/game';
 import { CardUI } from './CardUI';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,8 +16,10 @@ import { Crown, Users, Bot } from 'lucide-react';
 import Confetti from 'react-confetti';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { decideBid, type BiddingInput } from '@/ai/flows/bidding-flow';
-import { decideCardPlay, type PlayCardInput } from '@/ai/flows/play-card-flow';
+import { decideBid } from '@/ai/flows/bidding-flow';
+import type { BiddingInput } from '@/ai/flows/bidding-flow';
+import { decideCardPlay } from '@/ai/flows/play-card-flow';
+import type { PlayCardInput } from '@/ai/flows/play-card-flow';
 
 
 const SuitSelectIcon = ({ suit }: { suit: 'spades' | 'hearts' | 'clubs' | 'diamonds' }) => {
@@ -39,10 +41,10 @@ export default function GameBoard() {
   const [showResults, setShowResults] = useState(false);
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
   const [isProcessing, setIsProcessing] = useState(false);
-
+  const [lastTrickWinner, setLastTrickWinner] = useState<Player | null>(null);
 
   const { toast } = useToast();
-
+  
   const playerPositions = useMemo(() => {
     if (!gameState) return [];
     const positions = [];
@@ -70,6 +72,215 @@ export default function GameBoard() {
     }
   }, []);
   
+  const confirmPartners = (currentState: GameState, trump: Card['suit'], partnerCards: Card[]): GameState => {
+      const updatedPlayers = currentState.players.map(p => {
+          if (p.hand.some(cardInHand => partnerCards.some(pc => pc.id === cardInHand.id))) {
+              return { ...p, isPartner: true };
+          }
+          return p;
+      });
+      return { ...currentState, phase: 'playing', trumpSuit: trump, partnerCards, players: updatedPlayers };
+  }
+
+  const finishBidding = (currentState: GameState): GameState => {
+    if(!currentState.highestBid){
+        // Everyone passed, restart or handle this case
+        toast({ title: "Everyone Passed!", description: "Restarting bid." });
+        return {
+            ...currentState,
+            phase: 'bidding',
+            bids: [],
+            currentPlayerId: 0,
+        };
+     }
+     const bidder = currentState.players.find(p => p.id === currentState.highestBid!.playerId);
+     if(bidder) bidder.isBidder = true;
+
+     const finalState = { 
+        ...currentState,
+         phase: 'partner-selection',
+         currentPlayerId: currentState.highestBid!.playerId,
+     }
+
+     if (finalState.currentPlayerId === 0) {
+        setShowPartnerDialog(true);
+     } else {
+        // AI selects partners
+        const bidderHand = finalState.players[finalState.currentPlayerId].hand;
+        const potentialTrump = (['spades', 'hearts', 'clubs', 'diamonds'] as const).sort((a,b) => 
+            bidderHand.filter(c => c.suit === b).length - bidderHand.filter(c => c.suit === a).length
+        )[0];
+        const partnerCount = getNumberOfPartners(finalState.playerCount);
+        // Simple logic: pick high cards not in hand as partners
+        const potentialPartners = finalState.deck
+            .filter(c => !bidderHand.some(hc => hc.id === c.id))
+            .sort((a,b) => getCardPoints(b) - getCardPoints(a))
+            .slice(0, 10) // Consider top 10 potential cards
+            .sort(() => Math.random() - 0.5); // Randomize a bit
+        
+        const partnerCards = potentialPartners.slice(0, partnerCount);
+
+        toast({ title: "Partner Selection", description: `${bidder?.name} chose ${potentialTrump} as trump and called for ${partnerCards.map(c => `${c.rank} of ${c.suit}`).join(', ')}`})
+        
+        return confirmPartners(finalState, potentialTrump, partnerCards);
+     }
+
+     return finalState;
+  }
+
+  const handlePlaceBid = useCallback((amount: number, playerId: number) => {
+    setGameState(prev => {
+      if (!prev || !prev.players) return null;
+      
+      if (playerId === 0) { // Human player validation
+          const currentHighestBid = prev.highestBid?.amount || 115;
+          if (amount < currentHighestBid + 5) {
+            toast({
+              variant: "destructive",
+              title: "Invalid Bid",
+              description: `Your bid must be at least ${currentHighestBid + 5}.`,
+            });
+            return prev;
+          }
+      }
+
+      const newBids = [...prev.bids, { playerId: playerId, amount: amount }];
+      const nextPlayerId = (playerId + 1) % prev.playerCount;
+      
+      const updatedState: GameState = {
+          ...prev,
+          bids: newBids,
+          highestBid: { playerId: playerId, amount: amount },
+          currentPlayerId: nextPlayerId,
+      };
+
+      if (newBids.length >= prev.playerCount) {
+          return finishBidding(updatedState);
+      }
+      return updatedState;
+    });
+  }, [toast, finishBidding]);
+
+  const handlePass = useCallback((playerId: number) => {
+    setGameState(prev => {
+        if (!prev) return null;
+        const newBids = [...prev.bids, { playerId: playerId, amount: 0 }]; // 0 for pass
+        const nextPlayerId = (playerId + 1) % prev.playerCount;
+
+        const updatedState = { ...prev, bids: newBids, currentPlayerId: nextPlayerId };
+        if (newBids.length >= prev.playerCount) {
+            return finishBidding(updatedState);
+        }
+        return updatedState;
+    });
+  }, [finishBidding]);
+
+  const processTrick = (currentState: GameState) => {
+      if (!currentState || !currentState.trumpSuit) return;
+      const trick = currentState.currentTrick;
+      
+      let winner = trick.cards[0];
+      for(let i = 1; i < trick.cards.length; i++) {
+          const currentCardInfo = trick.cards[i];
+          const winnerCard = winner.card;
+          const currentCard = currentCardInfo.card;
+          
+          const RANKS_ORDER = { '2':2, '3':3, '4':4, '5':5, '6':6, '7':7, '8':8, '9':9, '10':10, 'J':11, 'Q':12, 'K':13, 'A':14};
+          
+          if(currentCard.suit === currentState.trumpSuit && winnerCard.suit !== currentState.trumpSuit) {
+              winner = currentCardInfo;
+          } else if(currentCard.suit === winnerCard.suit) {
+              if (RANKS_ORDER[currentCard.rank as Rank] > RANKS_ORDER[winnerCard.rank as Rank]) {
+                  winner = currentCardInfo;
+              }
+          }
+      }
+
+      const winningPlayer = currentState.players.find(p => p.id === winner.playerId)!;
+      toast({ title: `${winningPlayer.name} wins the trick!`, description: `With the ${winner.card.rank} of ${winner.card.suit}`});
+      setLastTrickWinner(winningPlayer);
+
+      const collectedCards = trick.cards.map((c: any) => c.card);
+      const points = collectedCards.reduce((acc: number, c: Card) => acc + getCardPoints(c), 0);
+      
+      setGameState(prev => {
+          if(!prev) return null;
+          
+          const updatedPlayers = prev.players.map(p => 
+              p.id === winner.playerId 
+              ? {...p, collectedCards: [...p.collectedCards, ...collectedCards], score: (p.score || 0) + points } 
+              : p
+          );
+          
+          const tricksPlayed = prev.tricksPlayed + 1;
+          const maxTricks = prev.deck.length / prev.playerCount;
+
+          let newPhase = prev.phase;
+          let team1Score = 0;
+          let team2Score = 0;
+
+          if (tricksPlayed === maxTricks) {
+              newPhase = 'results';
+              const bidderTeam = updatedPlayers.filter(p => p.isBidder || p.isPartner);
+              const opponentTeam = updatedPlayers.filter(p => !p.isBidder && !p.isPartner);
+              
+              team1Score = bidderTeam.reduce((acc, p) => acc + (p.score || 0), 0);
+              team2Score = opponentTeam.reduce((acc, p) => acc + (p.score || 0), 0);
+              
+              setTimeout(() => setShowResults(true), 1500);
+          }
+
+          return {
+            ...prev,
+            players: updatedPlayers,
+            currentTrick: { cards: [], leadingSuit: null },
+            currentPlayerId: winner.playerId,
+            tricksPlayed: tricksPlayed,
+            phase: newPhase,
+            team1Score,
+            team2Score
+          };
+      });
+      setIsProcessing(false);
+  }
+
+  const handlePlayCard = useCallback((card: Card, playerId: number) => {
+    setGameState(prev => {
+        if (!prev || prev.phase !== 'playing' || playerId !== prev.currentPlayerId) return prev;
+
+        const player = prev.players[playerId];
+        const trick = prev.currentTrick;
+        const leadingSuit = trick.leadingSuit;
+
+        // Rule: Must follow suit if possible
+        if (playerId === 0 && leadingSuit && player.hand.some(c => c.suit === leadingSuit) && card.suit !== leadingSuit) {
+            toast({ variant: "destructive", title: "Invalid Move", description: `You must play a ${leadingSuit} card.` });
+            return prev;
+        }
+
+        const newHand = player.hand.filter(c => c.id !== card.id);
+        const newTrick = { ...trick, cards: [...trick.cards, { playerId: player.id, card }] };
+        if (!newTrick.leadingSuit) {
+            newTrick.leadingSuit = card.suit;
+        }
+        
+        const updatedPlayers = [...prev.players];
+        updatedPlayers[player.id] = { ...player, hand: newHand };
+        
+        let nextPlayerId = (prev.currentPlayerId + 1) % prev.playerCount;
+        
+        const newState = {...prev!, players: updatedPlayers, currentTrick: newTrick, currentPlayerId: nextPlayerId };
+        
+        // If trick is complete
+        if (newTrick.cards.length === prev.playerCount) {
+            setIsProcessing(true);
+            setTimeout(() => processTrick(newState), 1500);
+        }
+
+        return newState;
+    });
+  }, [toast, processTrick]);
+
   // Game loop effect
   useEffect(() => {
     if (!gameState || isProcessing) return;
@@ -136,7 +347,7 @@ export default function GameBoard() {
 
     processAiTurn();
 
-  }, [gameState, isProcessing]);
+  }, [gameState, isProcessing, toast, handlePass, handlePlaceBid, handlePlayCard]);
 
   const handleStartGame = (playerCount: number) => {
     const deck = createDeck(playerCount);
@@ -157,112 +368,9 @@ export default function GameBoard() {
       team2Score: 0,
     });
     setBidAmount(120);
+    setLastTrickWinner(null);
   };
   
-  const handlePlaceBid = (amount: number, playerId: number) => {
-    if (!gameState || !gameState.players) return;
-    
-    if (playerId === 0) { // Human player validation
-        const currentHighestBid = gameState.highestBid?.amount || 115;
-        if (amount < currentHighestBid + 5) {
-          toast({
-            variant: "destructive",
-            title: "Invalid Bid",
-            description: `Your bid must be at least ${currentHighestBid + 5}.`,
-          });
-          return;
-        }
-    }
-
-    const newBids = [...gameState.bids, { playerId: playerId, amount: amount }];
-    const nextPlayerId = (playerId + 1) % gameState.playerCount;
-
-    setGameState(prev => {
-        if (!prev) return null;
-        const updatedState: GameState = {
-            ...prev,
-            bids: newBids,
-            highestBid: { playerId: playerId, amount: amount },
-            currentPlayerId: nextPlayerId,
-        };
-
-        if (newBids.length >= prev.playerCount) {
-            return finishBidding(updatedState);
-        }
-        return updatedState;
-    });
-  };
-
-  const handlePass = (playerId: number) => {
-    if (!gameState) return;
-    const newBids = [...gameState.bids, { playerId: playerId, amount: 0 }]; // 0 for pass
-    const nextPlayerId = (playerId + 1) % gameState.playerCount;
-
-    setGameState(prev => {
-        if (!prev) return null;
-        const updatedState = { ...prev, bids: newBids, currentPlayerId: nextPlayerId };
-        if (newBids.length >= prev.playerCount) {
-            return finishBidding(updatedState);
-        }
-        return updatedState;
-    });
-  };
-
-  const finishBidding = (currentState: GameState): GameState => {
-    if(!currentState.highestBid){
-        // Everyone passed, restart or handle this case
-        toast({ title: "Everyone Passed!", description: "Restarting bid." });
-        return {
-            ...currentState,
-            phase: 'bidding',
-            bids: [],
-            currentPlayerId: 0,
-        };
-     }
-     const bidder = currentState.players.find(p => p.id === currentState.highestBid!.playerId);
-     if(bidder) bidder.isBidder = true;
-
-     const finalState = { 
-        ...currentState,
-         phase: 'partner-selection',
-         currentPlayerId: currentState.highestBid!.playerId,
-     }
-
-     if (finalState.currentPlayerId === 0) {
-        setShowPartnerDialog(true);
-     } else {
-        // TODO: AI needs to select partners
-        // For now, auto-select for AI
-        const bidderHand = finalState.players[finalState.currentPlayerId].hand;
-        const potentialTrump = (['spades', 'hearts', 'clubs', 'diamonds'] as const).sort((a,b) => 
-            bidderHand.filter(c => c.suit === b).length - bidderHand.filter(c => c.suit === a).length
-        )[0];
-        const partnerCount = getNumberOfPartners(finalState.playerCount);
-        const potentialPartners = finalState.deck
-            .filter(c => !bidderHand.some(hc => hc.id === c.id))
-            .filter(c => c.rank === 'A' || c.rank === 'K'); // Simple logic: pick Aces/Kings
-        
-        const partnerCards = potentialPartners.slice(0, partnerCount);
-
-        toast({ title: "Partner Selection", description: `${bidder?.name} chose ${potentialTrump} as trump and called for ${partnerCards.map(c => `${c.rank} of ${c.suit}`).join(', ')}`})
-        
-        return confirmPartners(finalState, potentialTrump, partnerCards);
-     }
-
-     return finalState;
-  }
-  
-  const confirmPartners = (currentState: GameState, trump: Card['suit'], partnerCards: Card[]): GameState => {
-      const updatedPlayers = currentState.players.map(p => {
-          if (p.hand.some(cardInHand => partnerCards.some(pc => pc.id === cardInHand.id))) {
-              return { ...p, isPartner: true };
-          }
-          return p;
-      });
-      return { ...currentState, phase: 'playing', trumpSuit: trump, partnerCards, players: updatedPlayers };
-  }
-
-
   const handleConfirmPartners = () => {
       if(!gameState || !selectedTrump || selectedPartners.length < getNumberOfPartners(gameState.playerCount)) {
           toast({ variant: "destructive", title: "Selection Incomplete", description: "Please select a trump suit and partner card(s)."});
@@ -278,97 +386,11 @@ export default function GameBoard() {
 
       setShowPartnerDialog(false);
   }
-
-  const handlePlayCard = (card: Card, playerId: number) => {
-    if (!gameState || gameState.phase !== 'playing' || playerId !== gameState.currentPlayerId) return;
-
-    const player = gameState.players[playerId];
-    const trick = gameState.currentTrick;
-    const leadingSuit = trick.leadingSuit;
-
-    // Rule: Must follow suit if possible
-    if (playerId === 0 && leadingSuit && player.hand.some(c => c.suit === leadingSuit) && card.suit !== leadingSuit) {
-        toast({ variant: "destructive", title: "Invalid Move", description: `You must play a ${leadingSuit} card.` });
-        return;
-    }
-
-    const newHand = player.hand.filter(c => c.id !== card.id);
-    const newTrick = { ...trick, cards: [...trick.cards, { playerId: player.id, card }] };
-    if (!newTrick.leadingSuit) {
-        newTrick.leadingSuit = card.suit;
-    }
-    
-    const updatedPlayers = [...gameState.players];
-    updatedPlayers[player.id] = { ...player, hand: newHand };
-    
-    let nextPlayerId = (gameState.currentPlayerId + 1) % gameState.playerCount;
-    
-    setGameState(prev => ({...prev!, players: updatedPlayers, currentTrick: newTrick, currentPlayerId: nextPlayerId }));
-
-    // If trick is complete
-    if (newTrick.cards.length === gameState.playerCount) {
-        setIsProcessing(true);
-        setTimeout(() => processTrick(newTrick), 1500);
-    }
-  };
-
-  const processTrick = (trick: any) => {
-      if (!gameState || !gameState.trumpSuit) return;
-      
-      let winner = trick.cards[0];
-      for(let i = 1; i < trick.cards.length; i++) {
-          const currentCardInfo = trick.cards[i];
-          const winnerCard = winner.card;
-          const currentCard = currentCardInfo.card;
-          
-          const RANKS_ORDER: any = { '2':2, '3':3, '4':4, '5':5, '6':6, '7':7, '8':8, '9':9, '10':10, 'J':11, 'Q':12, 'K':13, 'A':14};
-          
-          if(currentCard.suit === gameState.trumpSuit && winnerCard.suit !== gameState.trumpSuit) {
-              winner = currentCardInfo;
-          } else if(currentCard.suit === winnerCard.suit) {
-              if (RANKS_ORDER[currentCard.rank] > RANKS_ORDER[winnerCard.rank]) {
-                  winner = currentCardInfo;
-              }
-          }
-      }
-
-      const winningPlayer = gameState.players.find(p => p.id === winner.playerId)!;
-      toast({ title: `${winningPlayer.name} wins the trick!`, description: `With the ${winner.card.rank} of ${winner.card.suit}`});
-
-      const collectedCards = trick.cards.map((c: any) => c.card);
-      const points = collectedCards.reduce((acc: number, c: Card) => acc + getCardPoints(c), 0);
-      
-      const isTeam1 = winningPlayer.isBidder || winningPlayer.isPartner;
-
-      setGameState(prev => {
-          if(!prev) return null;
-          
-          const updatedPlayers = prev.players.map(p => p.id === winner.playerId ? {...p, collectedCards: [...p.collectedCards, ...collectedCards]} : p);
-          
-          const tricksPlayed = prev.tricksPlayed + 1;
-          const maxTricks = prev.deck.length / prev.playerCount;
-
-          if (tricksPlayed === maxTricks) {
-              setTimeout(() => setShowResults(true), 1000);
-          }
-
-          return {
-            ...prev,
-            players: updatedPlayers,
-            currentTrick: { cards: [], leadingSuit: null },
-            currentPlayerId: winner.playerId,
-            team1Score: isTeam1 ? prev.team1Score + points : prev.team1Score,
-            team2Score: !isTeam1 ? prev.team2Score + points : prev.team2Score,
-            tricksPlayed: tricksPlayed,
-            phase: tricksPlayed === maxTricks ? 'results' : prev.phase
-          };
-      });
-      setIsProcessing(false);
-  }
   
   const resetGame = () => {
       setGameState(null);
       setShowResults(false);
+      setLastTrickWinner(null);
   }
 
   const renderSetup = () => (
@@ -411,7 +433,7 @@ export default function GameBoard() {
                  <Badge variant={p.id === currentPlayerId ? 'destructive' : 'secondary'} className="px-3 py-1 text-sm transition-all">
                     <Bot className="w-4 h-4 mr-1" /> {p.name}
                  </Badge>
-                 <Avatar className={cn("border-4", p.id === currentPlayerId ? 'border-accent' : 'border-transparent')}>
+                 <Avatar className={cn("border-4 transition-all duration-500", p.id === currentPlayerId ? 'border-accent' : 'border-transparent', p.id === lastTrickWinner?.id ? 'border-yellow-400 scale-110' : '')}>
                     <AvatarFallback>{p.name.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div className="flex gap-1">
@@ -419,33 +441,42 @@ export default function GameBoard() {
                         <CardUI key={idx} className="!w-6 !h-9" />
                     ))}
                 </div>
+                <Badge variant="outline">{(p.score || 0)} pts</Badge>
               </div>
             </motion.div>
           ))}
 
           {/* Table Center */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center gap-4">
-            <div className="flex gap-2 items-center">
-                <div className="p-3 bg-card/80 rounded-lg shadow-md text-center">
-                    <h3 className="text-sm font-bold text-primary">Bidder Team</h3>
-                    <p className="text-2xl font-bold">{gameState.team1Score}</p>
-                </div>
-                <div className="p-3 bg-card/80 rounded-lg shadow-md text-center">
-                    <h3 className="text-sm font-bold text-secondary-foreground">Opponents</h3>
-                    <p className="text-2xl font-bold">{gameState.team2Score}</p>
-                </div>
-            </div>
+            <AnimatePresence>
             {gameState.phase === 'playing' && (
-            <div className="flex items-center justify-center w-72 h-48 bg-black/10 rounded-2xl border-2 border-dashed border-white/20 p-4">
+              <motion.div 
+                key="trick-area"
+                initial={{opacity: 0, scale: 0.8}}
+                animate={{opacity: 1, scale: 1}}
+                exit={{opacity: 0, scale: 0.8}}
+                className="flex items-center justify-center w-72 h-48 bg-black/10 rounded-2xl border-2 border-dashed border-white/20 p-4"
+              >
                 <div className="flex relative w-full h-full">
-                {gameState.currentTrick.cards.map(({card, playerId}, index) => (
-                    <div key={index} className="absolute" style={{left: `${index * 20}%`, top: '50%', transform: 'translateY(-50%)'}}>
+                <AnimatePresence>
+                {gameState.currentTrick.cards.map(({card}, index) => (
+                    <motion.div 
+                      key={card.id} 
+                      className="absolute" 
+                      initial={{ opacity: 0, scale: 0.5, y: -20 }}
+                      animate={{ opacity: 1, scale: 1, y: -20, x: `${index * 25}%`, rotate: (index - gameState.currentTrick.cards.length / 2) * 5 }}
+                      exit={{ opacity: 0, scale: 0.5, y: 50, transition: { duration: 0.3 } }}
+                      transition={{ type: 'spring', stiffness: 300, damping: 20}}
+                      style={{left: `25%`, top: '50%', transform: 'translateY(-50%)'}}
+                    >
                         <CardUI card={card} isFaceUp={true} className="!w-20 !h-28" />
-                    </div>
+                    </motion.div>
                 ))}
+                </AnimatePresence>
                 </div>
-            </div>
+              </motion.div>
             )}
+            </AnimatePresence>
             {(isProcessing && gameState.currentPlayerId !== 0) && (
                 <div className="text-center p-4 bg-card/80 rounded-lg shadow-lg">
                     <p className="text-muted-foreground animate-pulse">Thinking...</p>
@@ -482,16 +513,22 @@ export default function GameBoard() {
                   style={{ zIndex: i }}
                   className="absolute bottom-4"
                 >
-                  <CardUI card={card} isFaceUp={true} isPlayable={gameState.phase === 'playing' && currentPlayerId === 0 && !isProcessing} onClick={() => gameState.phase === 'playing' && currentPlayerId === 0 && !isProcessing && handlePlayCard(card, 0)} />
+                  <CardUI 
+                    card={card} 
+                    isFaceUp={true} 
+                    isPlayable={gameState.phase === 'playing' && currentPlayerId === 0 && !isProcessing} 
+                    onClick={() => gameState.phase === 'playing' && currentPlayerId === 0 && !isProcessing && handlePlayCard(card, 0)} 
+                  />
                 </motion.div>
               ))}
               </AnimatePresence>
             </div>
-            <div className="bg-card/80 p-2 rounded-t-lg shadow-inner flex items-center gap-2">
-                <Avatar><AvatarFallback>Y</AvatarFallback></Avatar>
+            <div className="bg-card/80 p-2 rounded-t-lg shadow-inner flex items-center gap-4">
+                <Avatar className={cn("border-4 transition-all duration-500", user.id === lastTrickWinner?.id ? 'border-yellow-400 scale-110' : 'border-transparent')}><AvatarFallback>Y</AvatarFallback></Avatar>
                 <p className="font-bold">{user.name}</p>
                 {user.isBidder && <Badge><Crown className="w-4 h-4 mr-1" />Bidder</Badge>}
                 {user.isPartner && <Badge variant="secondary"><Users className="w-4 h-4 mr-1"/>Partner</Badge>}
+                <Badge variant="outline">{(user.score || 0)} pts</Badge>
                 {gameState.trumpSuit && (
                     <Badge variant="outline" className="flex items-center">
                         Trump: <SuitSelectIcon suit={gameState.trumpSuit} />
@@ -530,7 +567,7 @@ export default function GameBoard() {
                     <Select key={i} onValueChange={val => {
                         const newPartners = [...selectedPartners];
                         newPartners[i] = val;
-                        setSelectedPartners(newPartners);
+                        setSelectedPartners(Array.from(new Set(newPartners)));
                     }}>
                         <SelectTrigger className="mb-2"><SelectValue placeholder={`Select partner card ${i+1}...`} /></SelectTrigger>
                         <SelectContent>
@@ -556,7 +593,7 @@ export default function GameBoard() {
           {/* Results Dialog */}
           <Dialog open={showResults} onOpenChange={setShowResults}>
             <DialogContent>
-                {gameState.phase === 'results' && (
+                {gameState.phase === 'results' && gameState.team1Score > 0 && (
                     <AnimatePresence>
                         {(gameState.team1Score >= gameState.highestBid!.amount) && 
                             <Confetti width={windowSize.width} height={windowSize.height} recycle={false} />
@@ -564,7 +601,7 @@ export default function GameBoard() {
                     </AnimatePresence>
                 )}
               <DialogHeader>
-                <DialogTitle>Game Over!</DialogTitle>
+                <DialogTitle>Round Over!</DialogTitle>
               </DialogHeader>
                 {gameState.highestBid && (
                     <div className="text-center">
@@ -579,7 +616,7 @@ export default function GameBoard() {
                             </div>
                             <div className="bg-muted p-4 rounded-lg">
                                 <h4 className="font-bold">Opponent Team</h4>
-                                <p>Needed: {250 - gameState.highestBid.amount + 5}</p>
+                                <p>Needed to block: {250 - gameState.highestBid.amount + 5}</p>
                                 <p>Scored: {gameState.team2Score}</p>
                             </div>
                         </div>

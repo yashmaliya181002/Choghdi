@@ -15,6 +15,7 @@ export interface Player {
   isBidder: boolean;
   isPartner: boolean;
   collectedCards: Card[];
+  score: number;
 }
 
 export interface Bid {
@@ -66,8 +67,9 @@ export const createDeck = (playerCount: number): Card[] => {
     case 5:
       return standardDeck.filter(c => c.id !== '2D' && c.id !== '2C');
     case 6:
+      return standardDeck.filter(c => c.rank !== '2' && c.rank !== '3'); // Remove 2s and 3s (except 3S)
     case 8:
-      return standardDeck.filter(c => c.rank !== '2');
+       return [...standardDeck, ...standardDeck].filter(c => c.rank !== '2'); // Double deck for 8p
     case 7:
       return standardDeck.filter(c => c.id !== '2H' && c.id !== '2D' && c.id !== '2C');
     case 4:
@@ -89,11 +91,12 @@ export const dealCards = (deck: Card[], playerCount: number): Player[] => {
   const shuffledDeck = shuffleDeck(deck);
   const players: Player[] = Array.from({ length: playerCount }, (_, i) => ({
     id: i,
-    name: i === 0 ? 'You' : `Player ${i + 1}`,
+    name: i === 0 ? 'You' : `AI ${i}`,
     hand: [],
     isBidder: false,
     isPartner: false,
     collectedCards: [],
+    score: 0,
   }));
 
   let cardIndex = 0;
@@ -103,6 +106,17 @@ export const dealCards = (deck: Card[], playerCount: number): Player[] => {
       cardIndex++;
     }
   }
+
+  // Sort user's hand for better readability
+  const suitOrder: Suit[] = ['spades', 'hearts', 'clubs', 'diamonds'];
+  const rankOrder: Rank[] = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
+  players[0].hand.sort((a, b) => {
+    if (a.suit !== b.suit) {
+      return suitOrder.indexOf(a.suit) - suitOrder.indexOf(b.suit);
+    }
+    return rankOrder.indexOf(b.rank) - rankOrder.indexOf(a.rank);
+  });
+
 
   return players;
 };
