@@ -46,6 +46,25 @@ export default function GameBoard() {
     }
   }, []);
 
+  const playerPositions = useMemo(() => {
+      if (!gameState) return [];
+      const positions = [];
+      const radiusX = windowSize.width * 0.35;
+      const radiusY = windowSize.height * 0.3;
+      const centerX = windowSize.width / 2;
+      const centerY = windowSize.height / 2 - 50;
+      
+      for (let i = 1; i < gameState.playerCount; i++) {
+          const angle = (i / (gameState.playerCount-1)) * Math.PI * 1.5 - Math.PI * 1.25;
+          positions.push({
+              top: `${centerY + radiusY * Math.sin(angle)}px`,
+              left: `${centerX + radiusX * Math.cos(angle)}px`,
+          });
+      }
+      return positions;
+  }, [gameState, windowSize]);
+
+
   const handleStartGame = (playerCount: number) => {
     const deck = createDeck(playerCount);
     const players = dealCards(deck, playerCount);
@@ -270,24 +289,6 @@ export default function GameBoard() {
     if (!gameState) return null;
     const { players, playerCount, currentPlayerId } = gameState;
     const user = players[0];
-
-    const playerPositions = useMemo(() => {
-        const positions = [];
-        const radiusX = windowSize.width * 0.35;
-        const radiusY = windowSize.height * 0.3;
-        const centerX = windowSize.width / 2;
-        const centerY = windowSize.height / 2 - 50;
-        
-        for (let i = 1; i < playerCount; i++) {
-            const angle = (i / (playerCount-1)) * Math.PI * 1.5 - Math.PI * 1.25;
-            positions.push({
-                top: `${centerY + radiusY * Math.sin(angle)}px`,
-                left: `${centerX + radiusX * Math.cos(angle)}px`,
-            });
-        }
-        return positions;
-    }, [playerCount, windowSize]);
-
 
     return (
         <div className="relative w-full h-screen overflow-hidden bg-gradient-to-br from-background to-indigo-100 p-4">
