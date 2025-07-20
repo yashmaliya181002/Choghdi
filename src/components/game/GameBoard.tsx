@@ -64,37 +64,20 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
     // Create a new array of player IDs starting from the human player
     const orderedPlayerIds = [...playerIds.slice(humanPlayerIndex), ...playerIds.slice(0, humanPlayerIndex)];
   
-    // Define positions for a 4-player game
-    const fourPlayerPositions = [
-      { bottom: '20px', left: '50%', transform: 'translateX(-50%)' }, // Bottom
-      { top: '50%', left: '20px', transform: 'translateY(-50%)' },  // Left
-      { top: '20px', left: '50%', transform: 'translateX(-50%)' },  // Top
-      { top: '50%', right: '20px', transform: 'translateY(-50%)' }, // Right
-    ];
+    // Player 0 is always at the bottom
+    positions[humanPlayerId] = { bottom: '20px', left: '50%', transform: 'translateX(-50%)' };
 
-    // Generic circle for other counts
-    const getCirclePosition = (index: number) => {
-        const angle = (index / (playerCount - 1)) * Math.PI; // Top half circle
-        return {
+    // Other players are arranged on the top semi-circle
+    const otherPlayers = orderedPlayerIds.filter(id => id !== humanPlayerId);
+    const angleIncrement = Math.PI / (otherPlayers.length + 1); // Distribute players evenly in a semi-circle
+
+    otherPlayers.forEach((playerId, index) => {
+        const angle = angleIncrement * (index + 1);
+        positions[playerId] = {
             top: `calc(50% - 300px * ${Math.sin(angle)})`,
-            left: `calc(50% + 350px * ${Math.cos(angle)})`,
+            left: `calc(50% - 400px * ${Math.cos(angle)})`,
             transform: 'translate(-50%, -50%)'
         };
-    };
-
-    orderedPlayerIds.forEach((playerId, index) => {
-        if (playerCount === 4) {
-            positions[playerId] = fourPlayerPositions[index];
-        } else {
-            // Player 0 is at the bottom
-            if (index === 0) {
-                 positions[playerId] = { bottom: '20px', left: '50%', transform: 'translateX(-50%)' };
-            } else {
-                // Other players are arranged on the top semi-circle
-                const otherPlayerIndex = orderedPlayerIds.filter(id => id !== humanPlayerId).indexOf(playerId);
-                positions[playerId] = getCirclePosition(otherPlayerIndex + 1);
-            }
-        }
     });
 
     return positions;
@@ -190,9 +173,8 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
          currentPlayerId: currentState.highestBid!.playerId,
      }
      
-     if (bidder?.id === currentPlayer.id) {
-        setShowPartnerDialog(true);
-     }
+     // For local play, always show the dialog if it's the partner selection phase
+     setShowPartnerDialog(true);
      toast({ title: "Partner Selection", description: `Waiting for ${bidder?.name} to select partners.`});
      return finalState;
   };
@@ -223,6 +205,8 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
       }));
 
       setShowPartnerDialog(false);
+      setSelectedPartners([]);
+      setSelectedTrump(null);
   }
 
   const handlePlayCard = (card: Card, playerId: number) => {
@@ -378,19 +362,23 @@ export default function GameBoard({ initialGameState }: GameBoardProps) {
   
   const renderPlayerArea = (player: Player) => {
     const isCurrent = player.id === currentPlayer.id;
+    const isHumanPlayer = player.id === 0;
+
     return (
      <div className="flex flex-col items-center gap-2 relative">
-        {/* Opponent card backs */}
-        <div className="relative h-16 flex items-center justify-center -mb-2">
-            {!isCurrent && player.hand.map((_, idx) => (
-                <div key={idx} className="absolute" style={{ 
-                    transform: `translateX(${(idx - player.hand.length / 2) * 8}px) rotate(${(idx - player.hand.length/2) * 5}deg)`,
-                    zIndex: idx,
-                }}>
-                <CardUI className="!w-10 !h-14" />
-                </div>
-            ))}
-        </div>
+        {/* Opponent card backs (not for player 0) */}
+        {!isHumanPlayer && (
+             <div className="relative h-16 flex items-center justify-center -mb-2">
+                {player.hand.map((_, idx) => (
+                    <div key={idx} className="absolute" style={{ 
+                        transform: `translateX(${(idx - player.hand.length / 2) * 8}px)`,
+                        zIndex: idx,
+                    }}>
+                    <CardUI className="!w-10 !h-14" />
+                    </div>
+                ))}
+            </div>
+        )}
 
         <div className="flex flex-col items-center gap-2 p-2 rounded-lg bg-card/70 backdrop-blur-sm border shadow-lg min-w-[120px] text-center">
             <Avatar className={cn("border-4 transition-all duration-500", player.id === currentPlayerId ? 'border-accent' : 'border-transparent', player.id === lastTrickWinner?.id ? 'border-yellow-400 scale-110' : '')}>
