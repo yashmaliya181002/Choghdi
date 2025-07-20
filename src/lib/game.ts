@@ -43,6 +43,7 @@ export interface GameState {
   tricksPlayed: number;
   team1Score: number;
   team2Score: number;
+  turnHistory: string[];
 }
 
 const SUITS: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];

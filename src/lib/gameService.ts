@@ -2,111 +2,78 @@
 
 import { createDeck, dealCards, type GameState, type Player } from './game';
 
-// This file simulates a "game server" or backend service.
-// We now use a simple in-memory object to act as our database.
-// This will be shared across serverless function invocations on Vercel.
-
-interface Db {
-    games: Record<string, GameState>;
-}
-
-// In-memory store
-const db: Db = {
-    games: {}
-};
+// This service now sets up a single-player vs AI game.
+// No database or shared state is needed.
 
 function generateGameId(): string {
-    let id = '';
-    do {
-        id = Math.random().toString(36).substring(2, 6).toUpperCase();
-    } while (db.games[id]); // Ensure ID is unique in our in-memory store
-    return id;
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-
-export const createNewGame = async (playerCount: number, hostName: string): Promise<GameState> => {
+export const createNewGame = async (playerCount: number, humanPlayerName: string): Promise<GameState> => {
     const gameId = generateGameId();
     const deck = createDeck(playerCount);
 
-    const hostPlayer: Player = {
+    const players: Player[] = [];
+    
+    // Add the human player
+    players.push({
         id: 0,
-        name: hostName,
+        name: humanPlayerName,
         hand: [],
         isBidder: false,
         isPartner: false,
         collectedCards: [],
         tricksWon: 0,
-    };
+    });
+
+    // Add AI players
+    for (let i = 1; i < playerCount; i++) {
+        players.push({
+            id: i,
+            name: `Bot ${i}`,
+            hand: [],
+            isBidder: false,
+            isPartner: false,
+            collectedCards: [],
+            tricksWon: 0,
+        });
+    }
+
+    const dealtPlayers = dealCards(deck, players);
     
     const initialGameState: GameState = {
         id: gameId,
-        phase: 'lobby',
+        phase: 'bidding',
         playerCount,
-        players: [hostPlayer], // Start with only the host
+        players: dealtPlayers,
         deck,
         bids: [],
         highestBid: null,
         trumpSuit: null,
         partnerCards: [],
-        currentPlayerId: 0,
+        currentPlayerId: 0, // Human player starts bidding
         currentTrick: { cards: [], leadingSuit: null },
         tricksPlayed: 0,
         team1Score: 0,
         team2Score: 0,
+        turnHistory: [],
     };
-    
-    db.games[gameId] = initialGameState;
     
     return initialGameState;
 };
 
+// No longer needed for single-player vs AI
 export const joinGame = async (gameId: string, playerName: string): Promise<{updatedState: GameState, newPlayerId: number}> => {
-    const game = db.games[gameId.toUpperCase()];
-
-    if (!game) {
-        throw new Error('Game not found.');
-    }
-    if (game.phase !== 'lobby') {
-        throw new Error('Game has already started.');
-    }
-    if (game.players.length >= game.playerCount) {
-        throw new Error('Game is full.');
-    }
-
-    const newPlayerId = game.players.length;
-    const newPlayer: Player = {
-        id: newPlayerId,
-        name: playerName,
-        hand: [],
-        isBidder: false,
-        isPartner: false,
-        collectedCards: [],
-        tricksWon: 0,
-    };
-
-    const updatedPlayers = [...game.players, newPlayer];
-    let updatedState = { ...game, players: updatedPlayers };
-    
-    // If the lobby is now full, deal the cards and set phase to bidding
-    if (updatedPlayers.length === game.playerCount) {
-        const dealtPlayers = dealCards(game.deck, updatedPlayers);
-        updatedState = { ...updatedState, players: dealtPlayers, phase: 'bidding' };
-    }
-
-    db.games[gameId.toUpperCase()] = updatedState;
-    
-    return { updatedState, newPlayerId };
+    throw new Error("This functionality is disabled in Player vs. AI mode.");
 };
 
 export const getGameState = async (gameId: string): Promise<GameState | null> => {
-    return db.games[gameId.toUpperCase()] || null;
+     throw new Error("This functionality is disabled in Player vs. AI mode.");
 }
 
 export const updateGameState = async (newState: GameState): Promise<GameState> => {
-    if (!db.games[newState.id]) {
-        throw new Error("Game not found to update.");
-    }
-    db.games[newState.id] = newState;
-
+     // In a single player setup, this function might not even be needed,
+     // as state can be managed on the client.
+     // But we'll keep it for consistency in case of future changes.
     return newState;
 }
