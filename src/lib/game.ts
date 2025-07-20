@@ -62,24 +62,13 @@ export const createDeck = (playerCount: number): Card[] => {
     RANKS.map(rank => ({
       suit,
       rank,
-      id: `${rank.charAt(0)}${suit.charAt(0).toUpperCase()}`
+      id: `${rank.length > 1 ? rank.charAt(0) : rank}${suit.charAt(0).toUpperCase()}`
     }))
   );
 
   // Note: These rules are simplified. Real game rules can be more complex.
-  switch (playerCount) {
-    case 5: // 50 cards
-      return standardDeck.filter(c => c.id !== '2D' && c.id !== '2C');
-    case 6: // 44 cards
-      return standardDeck.filter(c => c.rank !== '2' && c.rank !== '3' || (c.rank === '3' && c.suit === 'spades'));
-    case 8: // Two 48-card decks
-       return [...standardDeck, ...standardDeck].filter(c => c.rank !== '2');
-    case 7: // 49 cards
-      return standardDeck.filter(c => c.id !== '2H' && c.id !== '2D' && c.id !== '2C');
-    case 4: // 52 cards
-    default:
-      return standardDeck;
-  }
+  // This just uses a standard 52-card deck for all player counts for simplicity.
+  return standardDeck;
 };
 
 export const shuffleDeck = (deck: Card[]): Card[] => {
@@ -96,25 +85,27 @@ export const dealCards = (deck: Card[], players: Player[]): Player[] => {
   const shuffledDeck = shuffleDeck(deck);
   const updatedPlayers = players.map(p => ({...p, hand: []}));
 
-
+  // Distribute cards as evenly as possible
   let cardIndex = 0;
   while (cardIndex < shuffledDeck.length) {
-    for (let i = 0; i < playerCount && cardIndex < shuffledDeck.length; i++) {
-      updatedPlayers[i].hand.push(shuffledDeck[cardIndex]);
-      cardIndex++;
-    }
+      for (let i = 0; i < playerCount; i++) {
+          if (cardIndex < shuffledDeck.length) {
+              updatedPlayers[i].hand.push(shuffledDeck[cardIndex]);
+              cardIndex++;
+          }
+      }
   }
 
   // Sort hands for better readability
   const suitOrder: Suit[] = ['spades', 'hearts', 'clubs', 'diamonds'];
-  const rankOrder: Rank[] = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
+  const rankOrderValue: Record<Rank, number> = {'A':14, 'K':13, 'Q':12, 'J':11, '10':10, '9':9, '8':8, '7':7, '6':6, '5':5, '4':4, '3':3, '2':2};
   
   updatedPlayers.forEach(p => {
     p.hand.sort((a, b) => {
       if (a.suit !== b.suit) {
         return suitOrder.indexOf(a.suit) - suitOrder.indexOf(b.suit);
       }
-      return rankOrder.indexOf(a.rank) - rankOrder.indexOf(b.rank);
+      return rankOrderValue[b.rank] - rankOrderValue[a.rank];
     });
   });
 
@@ -126,5 +117,5 @@ export const getNumberOfPartners = (playerCount: number): number => {
     if (playerCount <= 5) return 1;
     if (playerCount <= 7) return 2;
     if (playerCount === 8) return 3;
-    return 0;
+    return 1; // Default
 };

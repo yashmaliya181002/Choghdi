@@ -29,8 +29,10 @@ export default function Lobby() {
     useEffect(() => {
         if (gameState?.phase && gameState.phase !== 'lobby') {
             setView('game');
+        } else if (gameState?.phase === 'lobby') {
+            setView('lobby');
         }
-    }, [gameState?.phase]);
+    }, [gameState]);
 
     const handleCreateGame = () => {
         if (!playerName.trim()) {
