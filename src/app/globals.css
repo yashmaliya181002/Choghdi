@@ -61,3 +61,15 @@
     @apply font-headline;
   }
 }
+
+@layer utilities {
+  .bg-lobby {
+    background-color: #1a2a1a;
+    background-image:
+      radial-gradient(circle at center, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.8) 100%),
+      url("https://placehold.co/1920x1080/000000/FFFFFF.png?text=.");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+}
