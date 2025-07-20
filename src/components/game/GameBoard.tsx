@@ -12,10 +12,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { SpadeIcon, HeartIcon, ClubIcon, DiamondIcon } from './SuitIcons';
-import { Crown, Users } from 'lucide-react';
+import { Crown, Users, Bot } from 'lucide-react';
 import Confetti from 'react-confetti';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { decideBid, type BiddingInput } from '@/ai/flows/bidding-flow';
+import { decideCardPlay, type PlayCardInput } from '@/ai/flows/play-card-flow';
+
 
 const SuitSelectIcon = ({ suit }: { suit: 'spades' | 'hearts' | 'clubs' | 'diamonds' }) => {
     const commonClass = "w-5 h-5 mr-2";
@@ -35,9 +38,11 @@ export default function GameBoard() {
   const [selectedPartners, setSelectedPartners] = useState<string[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
+  const [isProcessing, setIsProcessing] = useState(false);
+
 
   const { toast } = useToast();
-  
+
   const playerPositions = useMemo(() => {
     if (!gameState) return [];
     const positions = [];
@@ -54,7 +59,7 @@ export default function GameBoard() {
         });
     }
     return positions;
-  }, [gameState, windowSize]);
+  }, [gameState?.playerCount, windowSize]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -64,6 +69,74 @@ export default function GameBoard() {
         return () => window.removeEventListener('resize', handleResize);
     }
   }, []);
+  
+  // Game loop effect
+  useEffect(() => {
+    if (!gameState || isProcessing) return;
+
+    const currentPlayer = gameState.players[gameState.currentPlayerId];
+    if (currentPlayer.id === 0) return; // Human player's turn
+
+    const processAiTurn = async () => {
+        setIsProcessing(true);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Pause for effect
+
+        if (gameState.phase === 'bidding') {
+            const currentHighestBid = gameState.highestBid?.amount || 115;
+            const input: BiddingInput = { 
+                player: currentPlayer, 
+                currentHighestBid: currentHighestBid,
+                playerCount: gameState.playerCount
+            };
+            try {
+                const { decision, amount } = await decideBid(input);
+                if (decision === 'bid' && amount) {
+                    toast({title: `${currentPlayer.name} bids ${amount}`})
+                    handlePlaceBid(amount, currentPlayer.id);
+                } else {
+                    toast({title: `${currentPlayer.name} passes`})
+                    handlePass(currentPlayer.id);
+                }
+            } catch (error) {
+                console.error("AI bidding error:", error);
+                handlePass(currentPlayer.id); // Default to passing on error
+            }
+
+        } else if (gameState.phase === 'playing') {
+            const input: PlayCardInput = {
+                hand: currentPlayer.hand,
+                trumpSuit: gameState.trumpSuit!,
+                currentTrick: gameState.currentTrick,
+                isBidderTeam: !!(currentPlayer.isBidder || currentPlayer.isPartner),
+            };
+            try {
+                const { cardId } = await decideCardPlay(input);
+                const cardToPlay = currentPlayer.hand.find(c => c.id === cardId);
+                if (cardToPlay) {
+                    toast({ title: `${currentPlayer.name} plays ${cardToPlay.rank} of ${cardToPlay.suit}`});
+                    handlePlayCard(cardToPlay, currentPlayer.id);
+                } else {
+                     // Failsafe
+                    handlePlayCard(currentPlayer.hand[0], currentPlayer.id);
+                }
+            } catch (error) {
+                console.error("AI playing error:", error);
+                // Failsafe: play the first valid card
+                const { hand, currentTrick } = input;
+                const leadingSuit = currentTrick.leadingSuit;
+                let possiblePlays = hand;
+                if (leadingSuit && hand.some(c => c.suit === leadingSuit)) {
+                    possiblePlays = hand.filter(c => c.suit === leadingSuit);
+                }
+                handlePlayCard(possiblePlays[0], currentPlayer.id);
+            }
+        }
+        setIsProcessing(false);
+    };
+
+    processAiTurn();
+
+  }, [gameState, isProcessing]);
 
   const handleStartGame = (playerCount: number) => {
     const deck = createDeck(playerCount);
@@ -86,75 +159,112 @@ export default function GameBoard() {
     setBidAmount(120);
   };
   
-  const handlePlaceBid = useCallback(() => {
+  const handlePlaceBid = (amount: number, playerId: number) => {
     if (!gameState || !gameState.players) return;
     
-    const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayerId);
-    if (!currentPlayer) return;
-
-    const currentHighestBid = gameState.highestBid?.amount || 115;
-    if (bidAmount < currentHighestBid + 5) {
-      toast({
-        variant: "destructive",
-        title: "Invalid Bid",
-        description: `Your bid must be at least ${currentHighestBid + 5}.`,
-      });
-      return;
+    if (playerId === 0) { // Human player validation
+        const currentHighestBid = gameState.highestBid?.amount || 115;
+        if (amount < currentHighestBid + 5) {
+          toast({
+            variant: "destructive",
+            title: "Invalid Bid",
+            description: `Your bid must be at least ${currentHighestBid + 5}.`,
+          });
+          return;
+        }
     }
 
-    const newBids = [...gameState.bids, { playerId: currentPlayer.id, amount: bidAmount }];
-    const nextPlayerId = (gameState.currentPlayerId + 1) % gameState.playerCount;
+    const newBids = [...gameState.bids, { playerId: playerId, amount: amount }];
+    const nextPlayerId = (playerId + 1) % gameState.playerCount;
 
     setGameState(prev => {
         if (!prev) return null;
-        const updatedState = {
+        const updatedState: GameState = {
             ...prev,
             bids: newBids,
-            highestBid: { playerId: currentPlayer.id, amount: bidAmount },
+            highestBid: { playerId: playerId, amount: amount },
             currentPlayerId: nextPlayerId,
         };
 
         if (newBids.length >= prev.playerCount) {
-            updatedState.phase = 'partner-selection';
-            updatedState.currentPlayerId = updatedState.highestBid!.playerId;
-            const bidder = updatedState.players.find(p => p.id === updatedState.highestBid!.playerId);
-            if(bidder) bidder.isBidder = true;
-            setShowPartnerDialog(true);
+            return finishBidding(updatedState);
         }
         return updatedState;
     });
-  }, [gameState, bidAmount, toast]);
+  };
 
-  const handlePass = useCallback(() => {
+  const handlePass = (playerId: number) => {
     if (!gameState) return;
-    const newBids = [...gameState.bids, { playerId: gameState.currentPlayerId, amount: 0 }]; // 0 for pass
-    const nextPlayerId = (gameState.currentPlayerId + 1) % gameState.playerCount;
+    const newBids = [...gameState.bids, { playerId: playerId, amount: 0 }]; // 0 for pass
+    const nextPlayerId = (playerId + 1) % gameState.playerCount;
 
     setGameState(prev => {
         if (!prev) return null;
         const updatedState = { ...prev, bids: newBids, currentPlayerId: nextPlayerId };
         if (newBids.length >= prev.playerCount) {
-             updatedState.phase = 'partner-selection';
-             if(!updatedState.highestBid){
-                // Everyone passed, restart or handle this case
-                toast({ title: "Everyone Passed!", description: "Restarting bid." });
-                updatedState.phase = 'bidding';
-                updatedState.bids = [];
-                updatedState.currentPlayerId = 0;
-                setBidAmount(120);
-                return updatedState;
-             }
-             updatedState.currentPlayerId = updatedState.highestBid!.playerId;
-             const bidder = updatedState.players.find(p => p.id === updatedState.highestBid!.playerId);
-             if(bidder) bidder.isBidder = true;
-             setShowPartnerDialog(true);
+            return finishBidding(updatedState);
         }
         return updatedState;
     });
-  }, [gameState, toast]);
+  };
+
+  const finishBidding = (currentState: GameState): GameState => {
+    if(!currentState.highestBid){
+        // Everyone passed, restart or handle this case
+        toast({ title: "Everyone Passed!", description: "Restarting bid." });
+        return {
+            ...currentState,
+            phase: 'bidding',
+            bids: [],
+            currentPlayerId: 0,
+        };
+     }
+     const bidder = currentState.players.find(p => p.id === currentState.highestBid!.playerId);
+     if(bidder) bidder.isBidder = true;
+
+     const finalState = { 
+        ...currentState,
+         phase: 'partner-selection',
+         currentPlayerId: currentState.highestBid!.playerId,
+     }
+
+     if (finalState.currentPlayerId === 0) {
+        setShowPartnerDialog(true);
+     } else {
+        // TODO: AI needs to select partners
+        // For now, auto-select for AI
+        const bidderHand = finalState.players[finalState.currentPlayerId].hand;
+        const potentialTrump = (['spades', 'hearts', 'clubs', 'diamonds'] as const).sort((a,b) => 
+            bidderHand.filter(c => c.suit === b).length - bidderHand.filter(c => c.suit === a).length
+        )[0];
+        const partnerCount = getNumberOfPartners(finalState.playerCount);
+        const potentialPartners = finalState.deck
+            .filter(c => !bidderHand.some(hc => hc.id === c.id))
+            .filter(c => c.rank === 'A' || c.rank === 'K'); // Simple logic: pick Aces/Kings
+        
+        const partnerCards = potentialPartners.slice(0, partnerCount);
+
+        toast({ title: "Partner Selection", description: `${bidder?.name} chose ${potentialTrump} as trump and called for ${partnerCards.map(c => `${c.rank} of ${c.suit}`).join(', ')}`})
+        
+        return confirmPartners(finalState, potentialTrump, partnerCards);
+     }
+
+     return finalState;
+  }
+  
+  const confirmPartners = (currentState: GameState, trump: Card['suit'], partnerCards: Card[]): GameState => {
+      const updatedPlayers = currentState.players.map(p => {
+          if (p.hand.some(cardInHand => partnerCards.some(pc => pc.id === cardInHand.id))) {
+              return { ...p, isPartner: true };
+          }
+          return p;
+      });
+      return { ...currentState, phase: 'playing', trumpSuit: trump, partnerCards, players: updatedPlayers };
+  }
+
 
   const handleConfirmPartners = () => {
-      if(!gameState || !selectedTrump || selectedPartners.length === 0) {
+      if(!gameState || !selectedTrump || selectedPartners.length < getNumberOfPartners(gameState.playerCount)) {
           toast({ variant: "destructive", title: "Selection Incomplete", description: "Please select a trump suit and partner card(s)."});
           return;
       }
@@ -163,27 +273,21 @@ export default function GameBoard() {
       
       setGameState(prev => {
           if(!prev) return null;
-          const updatedPlayers = prev.players.map(p => {
-              if (p.hand.some(cardInHand => partnerCards.some(pc => pc.id === cardInHand.id))) {
-                  return { ...p, isPartner: true };
-              }
-              return p;
-          });
-          return { ...prev, phase: 'playing', trumpSuit: selectedTrump, partnerCards, players: updatedPlayers };
+          return confirmPartners(prev, selectedTrump, partnerCards);
       });
 
       setShowPartnerDialog(false);
   }
 
-  const handlePlayCard = (card: Card) => {
-    if (!gameState || gameState.phase !== 'playing') return;
+  const handlePlayCard = (card: Card, playerId: number) => {
+    if (!gameState || gameState.phase !== 'playing' || playerId !== gameState.currentPlayerId) return;
 
-    const player = gameState.players[gameState.currentPlayerId];
+    const player = gameState.players[playerId];
     const trick = gameState.currentTrick;
     const leadingSuit = trick.leadingSuit;
 
     // Rule: Must follow suit if possible
-    if (leadingSuit && player.hand.some(c => c.suit === leadingSuit) && card.suit !== leadingSuit) {
+    if (playerId === 0 && leadingSuit && player.hand.some(c => c.suit === leadingSuit) && card.suit !== leadingSuit) {
         toast({ variant: "destructive", title: "Invalid Move", description: `You must play a ${leadingSuit} card.` });
         return;
     }
@@ -203,6 +307,7 @@ export default function GameBoard() {
 
     // If trick is complete
     if (newTrick.cards.length === gameState.playerCount) {
+        setIsProcessing(true);
         setTimeout(() => processTrick(newTrick), 1500);
     }
   };
@@ -258,6 +363,7 @@ export default function GameBoard() {
             phase: tricksPlayed === maxTricks ? 'results' : prev.phase
           };
       });
+      setIsProcessing(false);
   }
   
   const resetGame = () => {
@@ -303,7 +409,7 @@ export default function GameBoard() {
             >
               <div className="flex flex-col items-center gap-2">
                  <Badge variant={p.id === currentPlayerId ? 'destructive' : 'secondary'} className="px-3 py-1 text-sm transition-all">
-                    {p.name}
+                    <Bot className="w-4 h-4 mr-1" /> {p.name}
                  </Badge>
                  <Avatar className={cn("border-4", p.id === currentPlayerId ? 'border-accent' : 'border-transparent')}>
                     <AvatarFallback>{p.name.charAt(0)}</AvatarFallback>
@@ -340,7 +446,12 @@ export default function GameBoard() {
                 </div>
             </div>
             )}
-            {gameState.phase === 'bidding' && gameState.currentPlayerId !== 0 && (
+            {(isProcessing && gameState.currentPlayerId !== 0) && (
+                <div className="text-center p-4 bg-card/80 rounded-lg shadow-lg">
+                    <p className="text-muted-foreground animate-pulse">Thinking...</p>
+                </div>
+            )}
+            {gameState.phase === 'bidding' && gameState.currentPlayerId !== 0 && !isProcessing && (
                 <div className="text-center p-4 bg-card/80 rounded-lg shadow-lg">
                     <p className="text-muted-foreground">Waiting for {players[currentPlayerId].name} to bid...</p>
                     {gameState.highestBid && <p>Current bid: <span className="font-bold text-primary">{gameState.highestBid.amount}</span> by {players[gameState.highestBid.playerId].name}</p>}
@@ -351,12 +462,12 @@ export default function GameBoard() {
           {/* User's Hand & Area */}
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full flex flex-col items-center">
              {/* Bidding UI */}
-            {gameState.phase === 'bidding' && currentPlayerId === 0 && (
+            {gameState.phase === 'bidding' && currentPlayerId === 0 && !isProcessing && (
                 <motion.div initial={{y:50, opacity:0}} animate={{y:0, opacity:1}} className="bg-card p-4 rounded-t-lg shadow-lg flex items-center gap-4">
                     <h3 className="text-lg font-bold">Your Bid:</h3>
                     <Input type="number" value={bidAmount} onChange={e => setBidAmount(Number(e.target.value))} step={5} className="w-32" />
-                    <Button onClick={handlePlaceBid}>Place Bid</Button>
-                    <Button variant="outline" onClick={handlePass}>Pass</Button>
+                    <Button onClick={() => handlePlaceBid(bidAmount, 0)}>Place Bid</Button>
+                    <Button variant="outline" onClick={() => handlePass(0)}>Pass</Button>
                 </motion.div>
             )}
             <div className="flex justify-center items-end p-4" style={{ minHeight: '180px' }}>
@@ -371,7 +482,7 @@ export default function GameBoard() {
                   style={{ zIndex: i }}
                   className="absolute bottom-4"
                 >
-                  <CardUI card={card} isFaceUp={true} isPlayable={gameState.phase === 'playing' && currentPlayerId === 0} onClick={() => gameState.phase === 'playing' && currentPlayerId === 0 && handlePlayCard(card)} />
+                  <CardUI card={card} isFaceUp={true} isPlayable={gameState.phase === 'playing' && currentPlayerId === 0 && !isProcessing} onClick={() => gameState.phase === 'playing' && currentPlayerId === 0 && !isProcessing && handlePlayCard(card, 0)} />
                 </motion.div>
               ))}
               </AnimatePresence>
