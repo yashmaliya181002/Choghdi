@@ -22,9 +22,7 @@ type Message = {
 };
 
 export const useGameConnection = (localPlayerName: string) => {
-    const [peer, setPeer] = useState<Peer | null>(null);
     const [myPeerId, setMyPeerId] = useState<string>('');
-    const [connections, setConnections] = useState<Record<string, DataConnection>>({});
     const [status, setStatus] = useState<ConnectionStatus>('disconnected');
     const [role, setRole] = useState<PlayerRole>('none');
     const [gameState, setGameState] = useState<GameState | null>(null);
@@ -33,10 +31,9 @@ export const useGameConnection = (localPlayerName: string) => {
     // Refs for PeerJS instance and current game state to avoid stale closures
     const peerRef = useRef<Peer | null>(null);
     const gameStateRef = useRef(gameState);
-    const connectionsRef = useRef(connections);
+    const connectionsRef = useRef<Record<string, DataConnection>>({});
 
     useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
-    useEffect(() => { connectionsRef.current = connections; }, [connections]);
 
     const handleIncomingMessage = (message: Message, fromPeerId: string) => {
         console.log('Received message:', message.type, 'from', fromPeerId);
@@ -97,7 +94,6 @@ export const useGameConnection = (localPlayerName: string) => {
 
             const newPeer = new Peer();
             peerRef.current = newPeer;
-            setPeer(newPeer);
             setStatus('connecting');
 
             newPeer.on('open', (id) => {
@@ -109,7 +105,7 @@ export const useGameConnection = (localPlayerName: string) => {
             newPeer.on('connection', (conn) => {
                 console.log(`Incoming connection from ${conn.peer}`);
                 conn.on('open', () => {
-                    setConnections(prev => ({ ...prev, [conn.peer]: conn }));
+                    connectionsRef.current = {...connectionsRef.current, [conn.peer]: conn };
                     conn.on('data', (data) => handleIncomingMessage(data as Message, conn.peer));
                     conn.on('close', () => {
                          console.log(`Connection closed from ${conn.peer}`);
@@ -149,11 +145,11 @@ export const useGameConnection = (localPlayerName: string) => {
             return;
         }
         
-        const conn = peerRef.current.connect(hostPeerId);
+        const conn = peerRef.current.connect(hostPeerId, { reliable: true });
         setRole('peer');
 
         conn.on('open', () => {
-            setConnections({ [hostPeerId]: conn });
+            connectionsRef.current = { ...connectionsRef.current, [hostPeerId]: conn };
             console.log(`Connection opened to host ${hostPeerId}`);
             // Announce presence to host
             conn.send({ type: 'player_join_request', payload: { peerId: myPeerId, playerName: localPlayerName } });
