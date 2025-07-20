@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Peer, DataConnection } from 'peerjs';
 import { type GameState, type Player } from '@/lib/game';
 import { useToast } from './use-toast';
-import { createRoom, getPeerIdFromCode } from '@/lib/roomCodeService';
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 type PlayerRole = 'host' | 'peer' | 'none';
@@ -140,49 +139,33 @@ export const useGameConnection = (localPlayerName: string) => {
             return;
         }
         
-        try {
-            const { code } = await createRoom(myPeerId);
-            setRole('host');
-            setGameState({ ...initialState, id: code });
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Error creating room', description: error.message });
-        }
+        setRole('host');
+        setGameState({ ...initialState, id: myPeerId });
     };
 
-    const joinGame = async (gameCode: string) => {
+    const joinGame = async (hostPeerId: string) => {
         if (!peerRef.current || !myPeerId) {
             toast({ variant: 'destructive', title: 'Connection not ready', description: 'Please wait a moment and try again.'});
             return;
         }
         
-        try {
-            const { peerId: hostPeerId } = await getPeerIdFromCode(gameCode);
-            if (!hostPeerId) {
-                toast({ variant: 'destructive', title: 'Game not found', description: 'The game code is invalid or has expired.'});
-                return;
-            }
+        const conn = peerRef.current.connect(hostPeerId);
+        setRole('peer');
 
-            const conn = peerRef.current.connect(hostPeerId);
-            setRole('peer');
+        conn.on('open', () => {
+            setConnections({ [hostPeerId]: conn });
+            console.log(`Connection opened to host ${hostPeerId}`);
+            // Announce presence to host
+            conn.send({ type: 'player_join_request', payload: { peerId: myPeerId, playerName: localPlayerName } });
+        });
+        
+        conn.on('data', (data) => handleIncomingMessage(data as Message, hostPeerId));
 
-            conn.on('open', () => {
-                setConnections({ [hostPeerId]: conn });
-                console.log(`Connection opened to host ${hostPeerId}`);
-                // Announce presence to host
-                conn.send({ type: 'player_join_request', payload: { peerId: myPeerId, playerName: localPlayerName } });
-            });
-            
-            conn.on('data', (data) => handleIncomingMessage(data as Message, hostPeerId));
-
-            conn.on('error', (err) => {
-                console.error('Connection error:', err);
-                toast({ variant: 'destructive', title: 'Failed to Join', description: 'Could not connect to the host.' });
-                setRole('none');
-            });
-
-        } catch (error: any) {
-             toast({ variant: 'destructive', title: 'Error joining game', description: error.message });
-        }
+        conn.on('error', (err) => {
+            console.error('Connection error:', err);
+            toast({ variant: 'destructive', title: 'Failed to Join', description: 'Could not connect to the host.' });
+            setRole('none');
+        });
     };
     
     const broadcastGameState = (newState: GameState) => {
