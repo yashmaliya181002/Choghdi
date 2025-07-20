@@ -16,11 +16,9 @@ import { Crown, Users, Bot, Trophy, Info } from 'lucide-react';
 import Confetti from 'react-confetti';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-// Note: AI flows are no longer needed for human-vs-human multiplayer.
+// AI flows are removed for local multiplayer testing
 // import { decideBid } from '@/ai/flows/bidding-flow';
-// import type { BiddingInput } from '@/ai/flows/bidding-flow';
 // import { decideCardPlay } from '@/ai/flows/play-card-flow';
-// import type { PlayCardInput } from '@/ai/flows/play-card-flow';
 
 
 const SuitSelectIcon = ({ suit }: { suit: Card['suit'] }) => {
@@ -36,13 +34,9 @@ const SuitSelectIcon = ({ suit }: { suit: Card['suit'] }) => {
 type GameBoardProps = {
     initialGameState: GameState;
     localPlayerId: number;
-    // A function to send updates to the "server" would be passed here
-    // onGameUpdate: (newState: GameState) => void; 
 };
 
 export default function GameBoard({ initialGameState, localPlayerId }: GameBoardProps) {
-  // The game state is now managed via props and a "server"
-  // For this example, we'll still use some local state and simulate updates.
   const [gameState, setGameState] = useState<GameState>(initialGameState);
   const [bidAmount, setBidAmount] = useState(120);
   const [showPartnerDialog, setShowPartnerDialog] = useState(false);
@@ -52,33 +46,43 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastTrickWinner, setLastTrickWinner] = useState<Player | null>(null);
+  const [showLastTrick, setShowLastTrick] = useState(false);
 
   const { toast } = useToast();
-
-  const me = gameState.players.find(p => p.id === localPlayerId)!;
   
+  const me = gameState.players.find(p => p.id === localPlayerId)!;
+  const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayerId)!;
+
   const playerPositions = useMemo(() => {
     if (!gameState) return [];
     
-    const otherPlayers = gameState.players.filter(p => p.id !== localPlayerId);
-    const positions = [];
-    const radiusX = Math.min(windowSize.width * 0.4, 500);
-    const radiusY = Math.min(windowSize.height * 0.35, 300);
+    // Arrange players around the 'me' player
+    const myIdx = gameState.players.findIndex(p => p.id === localPlayerId);
+    const reorderedPlayers = [...gameState.players.slice(myIdx), ...gameState.players.slice(0, myIdx)];
+    const otherPlayers = reorderedPlayers.filter(p => p.id !== localPlayerId);
+
+    const positions: {[key: number]: { top: string, left: string }} = {};
+    const radiusX = Math.min(windowSize.width * 0.4, 450);
+    const radiusY = Math.min(windowSize.height * 0.35, 280);
     const centerX = windowSize.width / 2;
     const centerY = windowSize.height / 2 - 50;
     
-    const angleStep = Math.PI * 1.6 / (otherPlayers.length - 1 || 1);
-    const startingAngle = -Math.PI * 1.3;
+    // Place other players in a circle
+    const angleStep = Math.PI * 2 / (gameState.playerCount);
 
-    for (let i = 0; i < otherPlayers.length; i++) {
-        const angle = startingAngle + i * angleStep;
-        positions.push({
+    reorderedPlayers.forEach((player, index) => {
+        if(player.id === localPlayerId) return;
+
+        const angle = -Math.PI / 2 + index * angleStep;
+        positions[player.id] = {
             top: `${centerY + radiusY * Math.sin(angle)}px`,
             left: `${centerX + radiusX * Math.cos(angle)}px`,
-        });
-    }
+        };
+    });
+
     return positions;
   }, [gameState.players, localPlayerId, windowSize]);
+
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -89,48 +93,9 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
     }
   }, []);
   
-  const confirmPartners = (currentState: GameState, trump: Card['suit'], partnerCards: Card[]): GameState => {
-      const updatedPlayers = currentState.players.map(p => {
-          if (p.hand.some(cardInHand => partnerCards.some(pc => pc.id === cardInHand.id))) {
-              return { ...p, isPartner: true };
-          }
-          return p;
-      });
-      toast({ title: "Partners Selected!", description: `Trump is ${trump}. The game begins!` });
-      return { ...currentState, phase: 'playing', trumpSuit: trump, partnerCards, players: updatedPlayers };
-  }
-
-  const finishBidding = (currentState: GameState): GameState => {
-    if(!currentState.highestBid){
-        toast({ title: "Everyone Passed!", description: "Restarting bid." });
-        return {
-            ...currentState,
-            phase: 'bidding',
-            bids: [],
-            currentPlayerId: 0,
-        };
-     }
-     const bidder = currentState.players.find(p => p.id === currentState.highestBid!.playerId);
-     if(bidder) bidder.isBidder = true;
-
-     const finalState = { 
-        ...currentState,
-         phase: 'partner-selection',
-         currentPlayerId: currentState.highestBid!.playerId,
-     }
-
-     if (finalState.currentPlayerId === localPlayerId) {
-        setShowPartnerDialog(true);
-     } else {
-        toast({ title: "Partner Selection", description: `Waiting for ${bidder?.name} to select partners.`})
-     }
-
-     return finalState;
-  }
-
-  const handlePlaceBid = useCallback((amount: number, playerId: number) => {
+  const handlePlaceBid = (amount: number, playerId: number) => {
     setGameState(prev => {
-      if (!prev || prev.phase !== 'bidding' || playerId !== prev.currentPlayerId) return prev;
+      if (!prev || prev.phase !== 'bidding') return prev;
       
       const currentHighestBid = prev.highestBid?.amount || 115;
       if (amount < currentHighestBid + 5) {
@@ -163,104 +128,92 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
       if (newBids.length >= prev.playerCount) {
           updatedState = finishBidding(updatedState);
       }
-      // onGameUpdate(updatedState);
       return updatedState;
     });
-  }, [toast, localPlayerId]);
+  };
 
-  const handlePass = useCallback((playerId: number) => {
+  const handlePass = (playerId: number) => {
     setGameState(prev => {
-        if (!prev || prev.phase !== 'bidding' || playerId !== prev.currentPlayerId) return prev;
+        if (!prev || prev.phase !== 'bidding') return prev;
         const newBids = [...prev.bids, { playerId: playerId, amount: 0 }]; // 0 for pass
         const nextPlayerId = (playerId + 1) % prev.playerCount;
 
         let updatedState = { ...prev, bids: newBids, currentPlayerId: nextPlayerId };
-        if (newBids.length >= prev.playerCount) {
+        
+        const passes = updatedState.bids.filter(b => b.amount === 0).length;
+        const activeBidders = updatedState.playerCount - passes;
+        
+        if (activeBidders <= 1 && updatedState.bids.length >= updatedState.playerCount) {
             updatedState = finishBidding(updatedState);
+        } else if (passes === updatedState.playerCount) {
+             updatedState = finishBidding(updatedState);
         }
-        // onGameUpdate(updatedState);
         return updatedState;
     });
-  }, [localPlayerId]);
+  };
 
-  const processTrick = (currentState: GameState) => {
-      if (!currentState || !currentState.trumpSuit || currentState.currentTrick.cards.length !== currentState.playerCount) return;
-      
-      const trick = currentState.currentTrick;
-      
-      let winner = trick.cards[0];
-      const RANKS_ORDER: Record<Rank, number> = { '2':2, '3':3, '4':4, '5':5, '6':6, '7':7, '8':8, '9':9, '10':10, 'J':11, 'Q':12, 'K':13, 'A':14};
-      
-      for(let i = 1; i < trick.cards.length; i++) {
-          const currentCardInfo = trick.cards[i];
-          const winnerCard = winner.card;
-          const currentCard = currentCardInfo.card;
-          
-          if(currentCard.suit === currentState.trumpSuit && winnerCard.suit !== currentState.trumpSuit) {
-              winner = currentCardInfo;
-          } else if(currentCard.suit === winnerCard.suit) {
-              if (RANKS_ORDER[currentCard.rank] > RANKS_ORDER[winnerCard.rank]) {
-                  winner = currentCardInfo;
-              }
-          }
+  const finishBidding = (currentState: GameState): GameState => {
+    if(!currentState.highestBid){
+        toast({ title: "Everyone Passed!", description: "Restarting round." });
+        // In a real app you might redeal, here we just reset the phase
+        return {
+            ...currentState,
+            phase: 'bidding',
+            bids: [],
+            currentPlayerId: 0,
+        };
+     }
+     const bidder = currentState.players.find(p => p.id === currentState.highestBid!.playerId);
+     if(bidder) bidder.isBidder = true;
+
+     const finalState = { 
+        ...currentState,
+         phase: 'partner-selection',
+         currentPlayerId: currentState.highestBid!.playerId,
+     }
+     
+     // The bidder is now the current player, check if it's "me" to show dialog
+     if (finalState.currentPlayerId === localPlayerId) {
+        setShowPartnerDialog(true);
+     } else {
+        setShowPartnerDialog(true); // Now everyone can see who is selecting
+     }
+     
+     toast({ title: "Partner Selection", description: `Waiting for ${bidder?.name} to select partners.`});
+     return finalState;
+  };
+
+  const handleConfirmPartners = () => {
+      if(!gameState || !selectedTrump || selectedPartners.length < getNumberOfPartners(gameState.playerCount)) {
+          toast({ variant: "destructive", title: "Selection Incomplete", description: "Please select a trump suit and partner card(s)."});
+          return;
       }
-
-      const winningPlayer = currentState.players.find(p => p.id === winner.playerId)!;
-      toast({ title: `${winningPlayer.name} wins the trick!`, description: `With the ${winner.card.rank} of ${winner.card.suit}`});
-      setLastTrickWinner(winningPlayer);
-
-      const collectedCards = trick.cards.map((c: any) => c.card);
       
-      setGameState(prev => {
-          if(!prev) return null;
-          
-          const updatedPlayers = prev.players.map(p => 
-              p.id === winner.playerId 
-              ? {...p, collectedCards: [...p.collectedCards, ...collectedCards], tricksWon: p.tricksWon + 1 } 
-              : p
-          );
-          
-          const tricksPlayed = prev.tricksPlayed + 1;
-          const maxTricks = prev.deck.length / prev.playerCount;
-
-          let newPhase = prev.phase;
-          if (tricksPlayed === maxTricks) {
-              newPhase = 'results';
-              const bidderTeam = updatedPlayers.filter(p => p.isBidder || p.isPartner);
-              const opponentTeam = updatedPlayers.filter(p => !p.isBidder && !p.isPartner);
-              
-              const team1Score = bidderTeam.reduce((acc, p) => acc + p.collectedCards.reduce((sum, card) => sum + getCardPoints(card), 0), 0);
-              const team2Score = opponentTeam.reduce((acc, p) => acc + p.collectedCards.reduce((sum, card) => sum + getCardPoints(card), 0), 0);
-              
-              setTimeout(() => setShowResults(true), 1500);
-
-              return {
-                ...prev,
-                players: updatedPlayers,
-                currentTrick: { cards: [], leadingSuit: null },
-                currentPlayerId: winner.playerId,
-                tricksPlayed: tricksPlayed,
-                phase: newPhase,
-                team1Score,
-                team2Score
-              };
+      const partnerCards = gameState.deck.filter(c => selectedPartners.includes(c.id));
+      
+      const updatedPlayers = gameState.players.map(p => {
+          if (p.hand.some(cardInHand => partnerCards.some(pc => pc.id === cardInHand.id))) {
+              return { ...p, isPartner: true };
           }
-
-          // Return to playing phase for next trick
-          return {
-            ...prev,
-            players: updatedPlayers,
-            currentTrick: { cards: [], leadingSuit: null },
-            currentPlayerId: winner.playerId,
-            tricksPlayed: tricksPlayed,
-          };
+          return p;
       });
-      setIsProcessing(false);
+
+      toast({ title: "Partners Selected!", description: `Trump is ${selectedTrump}. The game begins!` });
+      
+      setGameState(prev => ({ 
+        ...prev!, 
+        phase: 'playing', 
+        trumpSuit: selectedTrump, 
+        partnerCards, 
+        players: updatedPlayers 
+      }));
+
+      setShowPartnerDialog(false);
   }
 
-  const handlePlayCard = useCallback((card: Card, playerId: number) => {
+  const handlePlayCard = (card: Card, playerId: number) => {
     setGameState(prev => {
-        if (!prev || prev.phase !== 'playing' || playerId !== prev.currentPlayerId || playerId !== localPlayerId) return prev;
+        if (!prev || prev.phase !== 'playing' || playerId !== prev.currentPlayerId) return prev;
 
         const player = prev.players.find(p => p.id === playerId);
         if (!player) return prev;
@@ -289,41 +242,120 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
             setIsProcessing(true);
             setTimeout(() => {
                 setGameState(currentState => {
-                    processTrick(currentState);
-                    // This is where you would get the next state from processTrick and send to server
-                    // onGameUpdate(processedState);
-                    return currentState; // The state is set within processTrick
+                    const postTrickState = processTrick(currentState);
+                    return postTrickState;
                 });
-            }, 1500);
-        } else {
-            // onGameUpdate(newState);
+            }, 2000);
         }
 
         return newState;
     });
-  }, [toast, localPlayerId]);
+  };
 
-  const handleConfirmPartners = () => {
-      if(!gameState || !selectedTrump || selectedPartners.length < getNumberOfPartners(gameState.playerCount)) {
-          toast({ variant: "destructive", title: "Selection Incomplete", description: "Please select a trump suit and partner card(s)."});
-          return;
+  const processTrick = (currentState: GameState): GameState => {
+      if (!currentState || !currentState.trumpSuit || currentState.currentTrick.cards.length !== currentState.playerCount) return currentState;
+      
+      const trick = currentState.currentTrick;
+      
+      let winner = trick.cards[0];
+      const RANKS_ORDER: Record<Rank, number> = { '2':2, '3':3, '4':4, '5':5, '6':6, '7':7, '8':8, '9':9, '10':10, 'J':11, 'Q':12, 'K':13, 'A':14};
+      
+      for(let i = 1; i < trick.cards.length; i++) {
+          const currentCardInfo = trick.cards[i];
+          const winnerCard = winner.card;
+          const currentCard = currentCardInfo.card;
+          
+          if(currentCard.suit === currentState.trumpSuit && winnerCard.suit !== currentState.trumpSuit) {
+              winner = currentCardInfo;
+          } else if(currentCard.suit === winnerCard.suit) {
+              if (RANKS_ORDER[currentCard.rank] > RANKS_ORDER[winnerCard.rank]) {
+                  winner = currentCardInfo;
+              }
+          }
       }
 
-      const partnerCards = gameState.deck.filter(c => selectedPartners.includes(c.id));
-      
-      setGameState(prev => {
-          if(!prev) return null;
-          const newState = confirmPartners(prev, selectedTrump, partnerCards);
-          // onGameUpdate(newState);
-          return newState;
-      });
+      const winningPlayer = currentState.players.find(p => p.id === winner.playerId)!;
+      toast({ title: `${winningPlayer.name} wins the trick!`, description: `With the ${winner.card.rank} of ${winner.card.suit}`});
+      setLastTrickWinner(winningPlayer);
 
-      setShowPartnerDialog(false);
+      const collectedCards = trick.cards.map((c: any) => c.card);
+      
+      const updatedPlayers = currentState.players.map(p => 
+          p.id === winner.playerId 
+          ? {...p, collectedCards: [...p.collectedCards, ...collectedCards], tricksWon: p.tricksWon + 1 } 
+          : p
+      );
+      
+      const tricksPlayed = currentState.tricksPlayed + 1;
+      const maxTricks = Math.floor(currentState.deck.length / currentState.playerCount);
+
+      if (tricksPlayed === maxTricks) {
+          const bidderTeam = updatedPlayers.filter(p => p.isBidder || p.isPartner);
+          const opponentTeam = updatedPlayers.filter(p => !p.isBidder && !p.isPartner);
+          
+          const team1Score = bidderTeam.reduce((acc, p) => acc + p.collectedCards.reduce((sum, card) => sum + getCardPoints(card), 0), 0);
+          const team2Score = opponentTeam.reduce((acc, p) => acc + p.collectedCards.reduce((sum, card) => sum + getCardPoints(card), 0), 0);
+          
+          setTimeout(() => setShowResults(true), 1500);
+
+          return {
+            ...currentState,
+            players: updatedPlayers,
+            currentTrick: { cards: [], leadingSuit: null },
+            currentPlayerId: winner.playerId,
+            tricksPlayed: tricksPlayed,
+            phase: 'results',
+            team1Score,
+            team2Score
+          };
+      }
+
+      setShowLastTrick(true);
+      setTimeout(() => setShowLastTrick(false), 1800);
+      setIsProcessing(false);
+
+      // Return to playing phase for next trick
+      return {
+        ...currentState,
+        players: updatedPlayers,
+        currentTrick: { cards: [], leadingSuit: null },
+        currentPlayerId: winner.playerId,
+        tricksPlayed: tricksPlayed,
+      };
   }
   
   const resetGame = () => {
     // This would trigger a "play again" event on the server
-    console.log("Resetting game");
+    // For now, it just resets the local state for a new round
+    setGameState(prev => {
+        if(!prev) return null;
+        const deck = createDeck(prev.playerCount);
+        const players = prev.players.map(p => ({
+            ...p,
+            hand: [],
+            isBidder: false,
+            isPartner: false,
+            collectedCards: [],
+            tricksWon: 0,
+        }));
+        const dealtPlayers = dealCards(deck, players);
+        return {
+            ...prev,
+            phase: 'bidding',
+            players: dealtPlayers,
+            deck,
+            bids: [],
+            highestBid: null,
+            trumpSuit: null,
+            partnerCards: [],
+            currentPlayerId: 0,
+            currentTrick: { cards: [], leadingSuit: null },
+            tricksPlayed: 0,
+            team1Score: 0,
+            team2Score: 0,
+        }
+    });
+    setShowResults(false);
   }
 
   if (!gameState || !me) return <div>Loading Game...</div>;
@@ -331,11 +363,41 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
   const { players, playerCount, currentPlayerId } = gameState;
   const otherPlayers = players.filter(p => p.id !== localPlayerId);
 
+  const renderPlayerArea = (player: Player) => (
+     <div className="flex flex-col items-center gap-2">
+         {player.id !== localPlayerId && (
+            <div className="relative h-16 flex items-center justify-center -mb-2">
+                {player.hand.map((_, idx) => (
+                    <div key={idx} className="absolute" style={{ 
+                        transform: `translateX(${(idx - player.hand.length / 2) * 8}px) rotate(${(idx - player.hand.length/2) * 5}deg)`,
+                        zIndex: idx,
+                    }}>
+                    <CardUI className="!w-10 !h-14" />
+                    </div>
+                ))}
+            </div>
+         )}
+        <Avatar className={cn("border-4 transition-all duration-500", player.id === currentPlayerId ? 'border-accent' : 'border-transparent', player.id === lastTrickWinner?.id ? 'border-yellow-400 scale-110' : '')}>
+            <AvatarFallback>{player.name.charAt(0).toUpperCase()}</AvatarFallback>
+        </Avatar>
+        <Badge variant={player.id === currentPlayerId ? 'destructive' : 'secondary'} className="px-3 py-1 text-sm transition-all shadow-md">
+           {player.name}
+        </Badge>
+        <div className="flex gap-2">
+            {player.isBidder && <Badge><Crown className="w-3 h-3" /> </Badge>}
+            {player.isPartner && <Badge variant="secondary"><Users className="w-3 h-3"/></Badge>}
+            <Badge variant="outline" className="flex items-center gap-1">
+                <Trophy className="w-3 h-3 text-yellow-500"/> {player.tricksWon}
+            </Badge>
+        </div>
+     </div>
+  );
+
   return (
       <div className="relative w-full h-screen overflow-hidden bg-gradient-to-br from-background to-purple-100 p-4 font-body">
         {/* Game Info Header */}
         <AnimatePresence>
-        {gameState.phase === 'playing' && gameState.highestBid && (
+        {(gameState.phase === 'playing' || gameState.phase === 'results') && gameState.highestBid && (
             <motion.div 
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -358,39 +420,22 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
         </AnimatePresence>
 
         {/* Other Players */}
-        {otherPlayers.map((p, i) => (
+        {otherPlayers.map((p) => (
           <motion.div 
             key={p.id}
             className="absolute -translate-x-1/2 -translate-y-1/2"
             initial={{opacity: 0}}
-            animate={{ opacity: 1, ...playerPositions[i] }}
+            animate={{ opacity: 1, ...(playerPositions[p.id] || {}) }}
             transition={{duration: 0.5}}
           >
-            <div className="flex flex-col items-center gap-2 w-48">
-               <Badge variant={p.id === currentPlayerId ? 'destructive' : 'secondary'} className="px-3 py-1 text-sm transition-all shadow">
-                  {p.name}
-               </Badge>
-               <Avatar className={cn("border-4 transition-all duration-500", p.id === currentPlayerId ? 'border-accent' : 'border-transparent', p.id === lastTrickWinner?.id ? 'border-yellow-400 scale-110' : '')}>
-                  <AvatarFallback>{p.name.charAt(0).toUpperCase()}</AvatarFallback>
-              </Avatar>
-              <div className="relative h-12 flex items-center justify-center">
-                  {p.hand.map((_, idx) => (
-                      <div key={idx} className="absolute" style={{ transform: `translateX(${(idx - p.hand.length / 2) * 10}px) rotate(${(idx - p.hand.length/2) * 5}deg)`}}>
-                        <CardUI className="!w-10 !h-14" />
-                      </div>
-                  ))}
-              </div>
-              <Badge variant="outline" className="flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-yellow-500"/> {p.tricksWon} tricks
-              </Badge>
-            </div>
+            {renderPlayerArea(p)}
           </motion.div>
         ))}
 
         {/* Table Center */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center gap-4">
           <AnimatePresence>
-          {gameState.phase === 'playing' && (
+          {gameState.phase === 'playing' && !showLastTrick && (
             <motion.div 
               key="trick-area"
               initial={{opacity: 0, scale: 0.8}}
@@ -420,14 +465,10 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
             </motion.div>
           )}
           </AnimatePresence>
-          {(isProcessing && gameState.currentPlayerId !== localPlayerId) && (
-              <div className="text-center p-4 bg-card/80 rounded-lg shadow-lg">
-                  <p className="text-muted-foreground animate-pulse">Waiting for {players.find(p => p.id === currentPlayerId)?.name}...</p>
-              </div>
-          )}
-           {gameState.phase === 'bidding' && gameState.currentPlayerId !== localPlayerId && (
+
+           {gameState.phase === 'bidding' && (
                 <div className="text-center p-4 bg-card/80 rounded-lg shadow-lg">
-                    <p className="text-muted-foreground">Waiting for {players[currentPlayerId].name} to bid...</p>
+                    <p className="text-muted-foreground animate-pulse">Waiting for {players[currentPlayerId].name} to bid...</p>
                     {gameState.highestBid && <p>Current bid: <span className="font-bold text-primary">{gameState.highestBid.amount}</span> by {players[gameState.highestBid.playerId].name}</p>}
                 </div>
             )}
@@ -435,15 +476,16 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
 
         {/* User's Hand & Area */}
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full flex flex-col items-center">
-           {/* Bidding UI */}
-          {gameState.phase === 'bidding' && currentPlayerId === localPlayerId && !isProcessing && (
+           {/* Bidding UI for current player */}
+          {gameState.phase === 'bidding' && !isProcessing && (
               <motion.div initial={{y:50, opacity:0}} animate={{y:0, opacity:1}} className="bg-card p-4 rounded-t-lg shadow-lg flex items-center gap-4">
-                  <h3 className="text-lg font-bold">Your Bid:</h3>
+                  <h3 className="text-lg font-bold">{currentPlayer.name}'s Bid:</h3>
                   <Input type="number" value={bidAmount} onChange={e => setBidAmount(Number(e.target.value))} step={5} className="w-32" />
-                  <Button onClick={() => handlePlaceBid(bidAmount, localPlayerId)}>Place Bid</Button>
-                  <Button variant="outline" onClick={() => handlePass(localPlayerId)}>Pass</Button>
+                  <Button onClick={() => handlePlaceBid(bidAmount, currentPlayerId)}>Place Bid</Button>
+                  <Button variant="outline" onClick={() => handlePass(currentPlayerId)}>Pass</Button>
               </motion.div>
           )}
+
           <div className="flex justify-center items-end p-4" style={{ minHeight: '220px' }}>
             <AnimatePresence>
             {me.hand.map((card, i) => (
@@ -464,21 +506,15 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
                 <CardUI 
                   card={card} 
                   isFaceUp={true} 
-                  isPlayable={gameState.phase === 'playing' && currentPlayerId === localPlayerId && !isProcessing} 
-                  onClick={() => gameState.phase === 'playing' && currentPlayerId === localPlayerId && !isProcessing && handlePlayCard(card, localPlayerId)} 
+                  isPlayable={gameState.phase === 'playing' && currentPlayerId === me.id && !isProcessing}
+                  onClick={() => gameState.phase === 'playing' && !isProcessing && handlePlayCard(card, me.id)} 
                 />
               </motion.div>
             ))}
             </AnimatePresence>
           </div>
           <div className="bg-card/80 backdrop-blur-sm p-3 rounded-t-lg shadow-inner flex items-center gap-4 border-t border-x">
-              <Avatar className={cn("border-4 transition-all duration-500", me.id === lastTrickWinner?.id ? 'border-yellow-400 scale-110' : 'border-transparent')}><AvatarFallback>{me.name.charAt(0).toUpperCase()}</AvatarFallback></Avatar>
-              <p className="font-bold text-lg">{me.name}</p>
-              {me.isBidder && <Badge><Crown className="w-4 h-4 mr-1" />Bidder</Badge>}
-              {me.isPartner && <Badge variant="secondary"><Users className="w-4 h-4 mr-1"/>Partner</Badge>}
-              <Badge variant="outline" className="flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-yellow-500"/> {me.tricksWon} tricks
-              </Badge>
+              {renderPlayerArea(me)}
           </div>
         </div>
         
@@ -488,13 +524,13 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
             <DialogHeader>
               <DialogTitle>Select Trump and Partners</DialogTitle>
               <DialogDescription>
-                You won the bid with {gameState.highestBid?.amount}! Choose your trump suit and call your partners.
+                {players.find(p => p.id === gameState.highestBid?.playerId)?.name} won with {gameState.highestBid?.amount}.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div>
                 <Label className="font-bold">Trump Suit</Label>
-                <Select onValueChange={(v: Card['suit']) => setSelectedTrump(v)}>
+                <Select onValueChange={(v: Card['suit']) => setSelectedTrump(v)} disabled={currentPlayerId !== gameState.highestBid?.playerId}>
                   <SelectTrigger><SelectValue placeholder="Select a suit..." /></SelectTrigger>
                   <SelectContent>
                     {(['spades', 'hearts', 'clubs', 'diamonds'] as const).map(suit => (
@@ -513,12 +549,13 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
                       const newPartners = [...selectedPartners];
                       newPartners[i] = val;
                       setSelectedPartners(Array.from(new Set(newPartners)));
-                  }}>
+                  }} disabled={currentPlayerId !== gameState.highestBid?.playerId}>
                       <SelectTrigger className="mb-2"><SelectValue placeholder={`Select partner card ${i+1}...`} /></SelectTrigger>
                       <SelectContent>
                       {gameState.deck
                           .filter(c => !me.hand.find(hc => hc.id === c.id))
                           .filter(c => !selectedPartners.includes(c.id) || selectedPartners[i] === c.id)
+                          .sort((a,b) => (a.suit + a.rank).localeCompare(b.suit + b.rank))
                           .map(card => (
                           <SelectItem key={card.id} value={card.id}>
                               {card.rank} of {card.suit}
@@ -530,7 +567,7 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={handleConfirmPartners}>Confirm and Start Game</Button>
+              <Button onClick={handleConfirmPartners} disabled={currentPlayerId !== gameState.highestBid?.playerId}>Confirm and Start Game</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -561,7 +598,6 @@ export default function GameBoard({ initialGameState, localPlayerId }: GameBoard
                           </div>
                           <div className="bg-muted p-4 rounded-lg">
                               <h4 className="font-bold">Opponent Team</h4>
-                              <p>Needed to block: {250 - gameState.highestBid.amount + 5}</p>
                               <p>Scored: {gameState.team2Score}</p>
                           </div>
                       </div>

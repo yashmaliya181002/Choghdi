@@ -8,7 +8,7 @@ import { createDeck, dealCards, type GameState, type Player } from './game';
 const games = new Map<string, GameState>();
 
 function generateGameId(): string {
-    return Math.random().toString(36).substr(2, 5).toUpperCase();
+    return Math.random().toString(36).substr(2, 4).toUpperCase();
 }
 
 
@@ -20,7 +20,7 @@ export const createInitialGameState = (playerCount: number, initialPlayers: {id:
         const initialPlayer = initialPlayers.find(p => p.id === i);
         return {
             id: i,
-            name: initialPlayer ? initialPlayer.name : `Waiting...`,
+            name: initialPlayer ? initialPlayer.name : `Player ${i + 1}`,
             hand: [],
             isBidder: false,
             isPartner: false,
