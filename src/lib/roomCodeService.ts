@@ -1,21 +1,35 @@
 
 'use server';
 
+import { headers } from 'next/headers';
+
 // This service communicates with our own application's API routes.
 
 const getBaseUrl = () => {
-    // This is the Vercel-provided URL for the deployment.
+    const headersList = headers();
+    const host = headersList.get('host');
+    
+    // For Vercel deployments, the host is directly available.
+    // For local development, it might be localhost with a port.
+    if (host) {
+        const protocol = host.startsWith('localhost') ? 'http' : 'https';
+        return `${protocol}://${host}`;
+    }
+
+    // A fallback for environments where the host header might not be available,
+    // though this is unlikely in a Next.js environment.
     if (process.env.VERCEL_URL) {
         return `https://${process.env.VERCEL_URL}`;
     }
-    // Fallback for local development. Assumes the app is running on port 9002.
+
     return 'http://localhost:9002'; 
 };
 
 
 export const createRoom = async (peerId: string): Promise<string> => {
   try {
-    const response = await fetch(`${getBaseUrl()}/api/room`, {
+    const baseUrl = getBaseUrl();
+    const response = await fetch(`${baseUrl}/api/room`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -51,7 +65,8 @@ export const getPeerIdFromCode = async (code: string): Promise<string | null> =>
   }
   
   try {
-    const response = await fetch(`${getBaseUrl()}/api/room?code=${code}`, {
+    const baseUrl = getBaseUrl();
+    const response = await fetch(`${baseUrl}/api/room?code=${code}`, {
         cache: 'no-store',
     });
     
