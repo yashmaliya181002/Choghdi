@@ -1,16 +1,14 @@
 
-
 const getBaseUrl = () => {
     if (process.env.NEXT_PUBLIC_VERCEL_URL) {
         return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
     }
-    // Assume localhost for local development
-    return 'http://localhost:3000'; // Default to 3000 if not specified
+    // Fallback for local development
+    return 'http://localhost:3000';
 };
 
-
 export async function createRoom(hostPeerId: string): Promise<{ roomCode: string }> {
-  const res = await fetch(`${getBaseUrl()}/api/room`, {
+  const res = await fetch(`/api/room`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ hostPeerId }),
@@ -23,7 +21,7 @@ export async function createRoom(hostPeerId: string): Promise<{ roomCode: string
 }
 
 export async function getRoomHost(roomCode: string): Promise<{ hostPeerId: string }> {
-  const res = await fetch(`${getBaseUrl()}/api/room?roomCode=${roomCode}`);
+  const res = await fetch(`/api/room?roomCode=${roomCode}`);
   if (!res.ok) {
     if (res.status === 404) {
         throw new Error('Room code not found.');

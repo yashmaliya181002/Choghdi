@@ -125,11 +125,7 @@ export const useGameConnection = () => {
               return;
             };
 
-            const newPeer = new Peer({
-                host: 'peerjs.92k.de',
-                secure: true,
-                port: 443,
-            });
+            const newPeer = new Peer();
             peerRef.current = newPeer;
             setStatus('connecting');
 

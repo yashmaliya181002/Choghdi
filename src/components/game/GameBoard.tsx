@@ -1,9 +1,9 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { type GameState, type Player, type Card, getNumberOfPartners, getCardPoints, Rank } from '@/lib/game';
+import { type GameState, type Player, type Card, getNumberOfPartners, getCardPoints, Rank, dealCards } from '@/lib/game';
 import { CardUI } from './CardUI';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -100,7 +100,7 @@ export default function GameBoard({ initialGameState, localPlayerId, isHost, bro
   }, [gameState.players, localPlayerId, windowSize.width, windowSize.height]);
 
 
-  const updateAndBroadcastState = (newState: GameState) => {
+  const updateAndBroadcastState = useCallback((newState: GameState) => {
     if (isHost && broadcastGameState) {
         broadcastGameState(newState);
     } else {
@@ -108,7 +108,7 @@ export default function GameBoard({ initialGameState, localPlayerId, isHost, bro
         // For now, we update locally for UI responsiveness.
         setGameState(newState);
     }
-  }
+  }, [isHost, broadcastGameState]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
