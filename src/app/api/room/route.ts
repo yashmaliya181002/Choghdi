@@ -1,11 +1,6 @@
 
 import { NextResponse } from 'next/server';
-
-// This is a simple in-memory store.
-// In a real production app, you might use Redis, Vercel KV, or a database.
-// But for a simple, non-dependent solution, this is perfect. It will reset if the server restarts.
-const roomStore = new Map<string, string>(); // Map<roomCode, hostPeerId>
-const activeCodes = new Set<string>();
+import { roomStore, activeCodes } from '@/lib/roomStore';
 
 function generateRoomCode(): string {
   let code = '';
