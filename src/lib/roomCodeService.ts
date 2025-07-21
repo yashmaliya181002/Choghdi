@@ -1,14 +1,14 @@
+
 'use server';
 
 // This service communicates with our own application's API routes.
 
 const getBaseUrl = () => {
+    // This is the Vercel-provided URL for the deployment.
     if (process.env.VERCEL_URL) {
-        // Vercel-provided URL for production/preview deployments.
         return `https://${process.env.VERCEL_URL}`;
     }
     // Fallback for local development. Assumes the app is running on port 9002.
-    // This is necessary because server-side fetch needs an absolute URL.
     return 'http://localhost:9002'; 
 };
 
@@ -20,7 +20,9 @@ export const createRoom = async (peerId: string): Promise<string> => {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ peerId })
+      body: JSON.stringify({ peerId }),
+      // Vercel can cache serverless function responses. 'no-store' ensures we always get a fresh result.
+      cache: 'no-store',
     });
 
     if (!response.ok) {
@@ -49,7 +51,9 @@ export const getPeerIdFromCode = async (code: string): Promise<string | null> =>
   }
   
   try {
-    const response = await fetch(`${getBaseUrl()}/api/room?code=${code}`);
+    const response = await fetch(`${getBaseUrl()}/api/room?code=${code}`, {
+        cache: 'no-store',
+    });
     
     if (response.status === 404) {
       return null; // Code not found, which is a valid scenario.
