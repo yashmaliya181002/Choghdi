@@ -1,12 +1,4 @@
 
-const getBaseUrl = () => {
-    if (process.env.NEXT_PUBLIC_VERCEL_URL) {
-        return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
-    }
-    // Fallback for local development
-    return 'http://localhost:3000';
-};
-
 export async function createRoom(hostPeerId: string): Promise<{ roomCode: string }> {
   const res = await fetch(`/api/room`, {
     method: 'POST',

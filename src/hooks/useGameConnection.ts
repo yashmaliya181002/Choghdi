@@ -111,7 +111,7 @@ export const useGameConnection = () => {
         }
     }, [role, broadcastGameState]);
     
-    const initializePeer = useCallback((name: string) => {
+    const initializeConnection = useCallback((name: string) => {
       setLocalPlayerName(name);
       return new Promise<string>((resolve, reject) => {
         if (peerRef.current && peerRef.current.id) {
@@ -272,5 +272,5 @@ export const useGameConnection = () => {
         setIsStartingGame(false);
     }
     
-    return { myPeerId, status, role, gameState, isLoading, isStartingGame, error, createRoom, joinRoom, broadcastGameState, startGame, roomCode, initializeConnection: initializePeer };
+    return { myPeerId, status, role, gameState, isLoading, isStartingGame, error, createRoom, joinRoom, broadcastGameState, startGame, roomCode, initializeConnection };
 };
