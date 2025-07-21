@@ -8,12 +8,11 @@ import { Label } from '@/components/ui/label';
 import { Card as UICard, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Copy } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { SpadeIcon, HeartIcon, DiamondIcon, ClubIcon } from '@/components/game/SuitIcons';
 import GameBoard from '@/components/game/GameBoard';
 import Lobby from '@/components/game/Lobby';
 import { useGameConnection } from '@/hooks/useGameConnection';
-import type { GameState } from '@/lib/game';
 
 type View = 'menu' | 'lobby' | 'game';
 
@@ -38,7 +37,6 @@ export default function Home() {
     initializeConnection,
   } = useGameConnection();
 
-  // Handle initialization and navigation based on game state
   useEffect(() => {
     if (gameState) {
       if (gameState.phase === 'lobby') {
@@ -51,14 +49,15 @@ export default function Home() {
     }
   }, [gameState]);
 
-
   const handleCreateTable = async () => {
     if (!playerName.trim()) {
       toast({ variant: 'destructive', title: 'Please enter your name.' });
       return;
     }
-    await initializeConnection(playerName);
-    await createRoom(parseInt(playerCount, 10));
+    const peerId = await initializeConnection(playerName);
+    if(peerId){
+        await createRoom(parseInt(playerCount, 10), peerId, playerName);
+    }
   };
 
   const handleJoinTable = async () => {
@@ -70,8 +69,10 @@ export default function Home() {
       toast({ variant: 'destructive', title: 'Please enter a valid join code.' });
       return;
     }
-    await initializeConnection(playerName);
-    await joinRoom(joinCode);
+    const myId = await initializeConnection(playerName);
+    if(myId){
+        await joinRoom(joinCode, myId, playerName);
+    }
   };
 
   useEffect(() => {
@@ -108,7 +109,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen game-background text-foreground flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Decorative elements */}
       <SpadeIcon className="absolute -bottom-12 -left-12 text-black/10 w-48 h-48 rotate-[-30deg]" />
       <HeartIcon className="absolute -top-20 -right-16 text-white/5 w-56 h-56 rotate-[20deg]" />
       <ClubIcon className="absolute bottom-24 right-10 text-black/10 w-32 h-32 rotate-[15deg]" />
