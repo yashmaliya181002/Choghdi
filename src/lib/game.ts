@@ -32,8 +32,7 @@ export interface Trick {
 }
 
 export interface GameState {
-  id: string; // Game room code
-  roomCode?: string; // Explicitly add roomCode
+  id: string; // Game room ID, now the host's PeerJS ID
   phase: GamePhase;
   players: Player[];
   playerCount: number;

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card as UICard, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Copy } from 'lucide-react';
 import { SpadeIcon, HeartIcon, DiamondIcon, ClubIcon } from '@/components/game/SuitIcons';
 import GameBoard from '@/components/game/GameBoard';
 import Lobby from '@/components/game/Lobby';
@@ -34,7 +34,8 @@ export default function Home() {
     joinRoom,
     broadcastGameState,
     isStartingGame,
-    startGame
+    startGame,
+    status
   } = useGameConnection(playerName);
 
   const handleCreateTable = async () => {
@@ -53,8 +54,8 @@ export default function Home() {
       toast({ variant: 'destructive', title: 'Please enter your name.' });
       return;
     }
-    if (!joinCode.trim() || joinCode.length !== 4) {
-      toast({ variant: 'destructive', title: 'Please enter a valid 4-digit code.' });
+    if (!joinCode.trim()) {
+      toast({ variant: 'destructive', title: 'Please enter a valid join code.' });
       return;
     }
     const joined = await joinRoom(joinCode);
@@ -90,6 +91,12 @@ export default function Home() {
       isHost={role === 'host'}
       broadcastGameState={role === 'host' ? broadcastGameState : undefined}
     />;
+  }
+
+  const copyMyPeerId = () => {
+    if (!myPeerId) return;
+    navigator.clipboard.writeText(myPeerId);
+    toast({ title: "Copied!", description: "Your join code has been copied." });
   }
 
   return (
@@ -135,6 +142,15 @@ export default function Home() {
                       {isLoading && role === 'host' ? <Loader2 className="animate-spin" /> : 'Create Table'}
                   </Button>
                 </div>
+                 {role === 'host' && myPeerId && view === 'menu' && (
+                    <div className="flex flex-col items-center gap-2 pt-2">
+                        <Label>Your Join Code (Share with friends)</Label>
+                        <div className="flex items-center gap-2 p-2 bg-background rounded-md border w-full">
+                            <Input readOnly value={myPeerId} className="border-none text-center tracking-wider"/>
+                            <Button size="icon" variant="ghost" onClick={copyMyPeerId}><Copy /></Button>
+                        </div>
+                    </div>
+                )}
               </div>
               
               <div className="relative">
@@ -146,10 +162,10 @@ export default function Home() {
                 <h3 className="text-lg font-bold text-center text-primary">Join an Existing Game</h3>
                 <div className="flex items-end gap-4">
                   <div className="space-y-2 flex-grow">
-                    <Label htmlFor="game-code">4-Digit Code</Label>
-                    <Input id="game-code" placeholder="1234" value={joinCode} onChange={(e) => setJoinCode(e.target.value)} maxLength={4} />
+                    <Label htmlFor="game-code">Host's Code</Label>
+                    <Input id="game-code" placeholder="Paste host's code..." value={joinCode} onChange={(e) => setJoinCode(e.target.value)} />
                   </div>
-                  <Button className="h-10 flex-grow" onClick={handleJoinTable} disabled={isLoading || !playerName || joinCode.length !== 4}>
+                  <Button className="h-10 flex-grow" onClick={handleJoinTable} disabled={isLoading || !playerName || joinCode.length === 0}>
                     {isLoading && role === 'peer' ? <Loader2 className="animate-spin" /> : 'Join Game'}
                   </Button>
                 </div>

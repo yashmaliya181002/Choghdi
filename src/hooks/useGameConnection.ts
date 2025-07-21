@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Peer, DataConnection } from 'peerjs';
 import { type GameState, type Player, createDeck, dealCards } from '@/lib/game';
-import { createRoom as apiCreateRoom, getRoomHost } from '@/lib/roomCodeService';
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 type PlayerRole = 'host' | 'peer' | 'none';
@@ -161,10 +160,11 @@ export const useGameConnection = (localPlayerName: string) => {
     }, [handleIncomingMessage]);
 
     useEffect(() => {
+        initializePeer();
         return () => {
             peerRef.current?.destroy();
         };
-    }, []);
+    }, [initializePeer]);
 
     const createRoom = async (playerCount: number) => {
         setIsLoading(true);
@@ -172,15 +172,13 @@ export const useGameConnection = (localPlayerName: string) => {
         setRole('host');
         try {
             const peerId = await initializePeer();
-            const { roomCode } = await apiCreateRoom(peerId);
             
             const hostPlayer: Player = {
                 id: 0, name: localPlayerName, peerId, hand: [], isBidder: false, isPartner: false, collectedCards: [], tricksWon: 0, isHost: true
             };
             
             const initialGameState: GameState = {
-                id: roomCode,
-                roomCode: roomCode,
+                id: peerId, // The game ID is the host's peer ID
                 phase: 'lobby',
                 playerCount: playerCount,
                 players: [hostPlayer],
@@ -208,13 +206,12 @@ export const useGameConnection = (localPlayerName: string) => {
         }
     };
     
-    const joinRoom = async (roomCode: string) => {
+    const joinRoom = async (hostPeerId: string) => {
         setIsLoading(true);
         setError(null);
         setRole('peer');
         try {
             const peerId = await initializePeer();
-            const { hostPeerId } = await getRoomHost(roomCode);
             
             if (!peerRef.current || !hostPeerId) {
                 throw new Error("Could not find the game host.");
@@ -239,7 +236,9 @@ export const useGameConnection = (localPlayerName: string) => {
             });
     
             conn.on('error', (err) => {
-                throw new Error("Failed to connect to host.");
+                setError("Failed to connect to host. Check the code.");
+                setRole('none');
+                setConnections({});
             });
             setIsLoading(false);
             return true;

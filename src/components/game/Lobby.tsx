@@ -20,17 +20,19 @@ type LobbyProps = {
 export default function Lobby({ gameState, myPeerId, isHost, onStartGame, isStartingGame }: LobbyProps) {
     const { toast } = useToast();
 
+    const gameCode = gameState.id; // The game ID is the host's PeerJS ID
+
     const copyGameCode = () => {
-        if (!gameState.roomCode) return;
-        navigator.clipboard.writeText(gameState.roomCode);
-        toast({ title: "Copied!", description: "Game code copied to clipboard." });
+        if (!gameCode) return;
+        navigator.clipboard.writeText(gameCode);
+        toast({ title: "Copied!", description: "Host's code copied to clipboard." });
     }
 
     const shareGame = () => {
-        if (navigator.share && gameState.roomCode) {
+        if (navigator.share && gameCode) {
             navigator.share({
                 title: 'Kaali Teeri Game',
-                text: `Join my Kaali Teeri game with this code: ${gameState.roomCode}`,
+                text: `Join my Kaali Teeri game with this code: ${gameCode}`,
                 url: window.location.href
             }).catch(err => console.log("Couldn't share", err));
         } else {
@@ -59,14 +61,14 @@ export default function Lobby({ gameState, myPeerId, isHost, onStartGame, isStar
                 <UICard className="w-full max-w-lg shadow-2xl bg-card/90 backdrop-blur-sm border-black/20">
                     <CardHeader className="text-center">
                         <CardTitle className="text-3xl font-bold text-primary">Game Lobby</CardTitle>
-                        <CardDescription>Share the 4-digit code with your friends to join!</CardDescription>
+                        <CardDescription>Share the host's code with your friends to join!</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
                         <div className="flex flex-col items-center justify-center space-y-2">
-                            <Label>Game Code</Label>
+                            <Label>Host's Code</Label>
                             <div className="flex items-center gap-2">
-                                <div className="text-4xl font-bold tracking-widest bg-muted p-3 rounded-lg border">
-                                    {gameState.roomCode || '----'}
+                                <div className="text-lg font-mono tracking-wider bg-muted p-3 rounded-lg border max-w-xs overflow-x-auto">
+                                    {gameCode || '----'}
                                 </div>
                                 <Button variant="ghost" size="icon" onClick={copyGameCode} aria-label="Copy code">
                                     <Copy className="w-6 h-6"/>
