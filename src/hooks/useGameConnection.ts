@@ -92,6 +92,8 @@ export const useGameConnection = () => {
                 break;
             case 'game_full':
                 setError('Game is full');
+                setIsLoading(false);
+                setRole('none');
                 break;
             case 'player_left':
                 if (role === 'host' && gameStateRef.current) {
@@ -112,16 +114,15 @@ export const useGameConnection = () => {
     const initializeConnection = useCallback((name: string) => {
       setLocalPlayerName(name);
       return new Promise<string>((resolve, reject) => {
-        if (peerRef.current && peerRef.current.id) {
+        if (peerRef.current && peerRef.current.id && !peerRef.current.disconnected) {
           resolve(peerRef.current.id);
           return;
         }
 
         import('peerjs').then(({ default: Peer }) => {
             if (peerRef.current) {
-              if (peerRef.current.id) resolve(peerRef.current.id);
-              return;
-            };
+                peerRef.current.destroy();
+            }
 
             const newPeer = new Peer();
             peerRef.current = newPeer;
@@ -216,7 +217,7 @@ export const useGameConnection = () => {
                 throw new Error("Invalid Host ID provided.");
             }
             
-            const conn = peerRef.current.connect(hostPeerId);
+            const conn = peerRef.current.connect(hostPeerId, { reliable: true });
     
             conn.on('open', () => {
                 setConnections({ [hostPeerId]: conn });
@@ -254,7 +255,7 @@ export const useGameConnection = () => {
         if (role !== 'host' || !gameState) return;
         setIsStartingGame(true);
 
-        let updatedState = { ...gameState };
+        let updatedState = JSON.parse(JSON.stringify(gameState));
         
         const dealtPlayers = dealCards(updatedState.deck, updatedState.players);
         updatedState.players = dealtPlayers;
