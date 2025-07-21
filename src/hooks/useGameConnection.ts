@@ -1,4 +1,3 @@
-
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Peer, DataConnection } from 'peerjs';
@@ -20,10 +19,12 @@ type Message = {
 } | {
     type: 'welcome';
     payload: GameState;
+} | {
+    type: 'player_left';
+    payload: { peerId: string };
 };
 
 export const useGameConnection = (localPlayerName: string) => {
-    const [peer, setPeer] = useState<Peer | null>(null);
     const [myPeerId, setMyPeerId] = useState<string>('');
     const [connections, setConnections] = useState<Record<string, DataConnection>>({});
     const [status, setStatus] = useState<ConnectionStatus>('disconnected');
@@ -31,19 +32,32 @@ export const useGameConnection = (localPlayerName: string) => {
     const [gameState, setGameState] = useState<GameState | null>(null);
     const { toast } = useToast();
 
-    // Refs for PeerJS instance and current game state to avoid stale closures
     const peerRef = useRef<Peer | null>(null);
     const gameStateRef = useRef(gameState);
     const connectionsRef = useRef(connections);
 
     useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
     useEffect(() => { connectionsRef.current = connections; }, [connections]);
+    
+    const broadcastGameState = useCallback((newState: GameState) => {
+        if (role !== 'host') return;
 
-    const handleIncomingMessage = (message: Message, fromPeerId: string) => {
+        const message: Message = { type: 'game_state_update', payload: newState };
+        
+        Object.values(connectionsRef.current).forEach(conn => {
+            if (conn && conn.open) {
+                conn.send(message);
+            }
+        });
+        // The host also updates its own state
+        setGameState(newState);
+    }, [role]);
+
+
+    const handleIncomingMessage = useCallback((message: Message, fromPeerId: string) => {
         console.log('Received message:', message.type, 'from', fromPeerId);
         switch (message.type) {
             case 'game_state_update':
-                // Only peers should accept state updates from the host
                 if (role === 'peer') {
                     setGameState(message.payload);
                 }
@@ -68,14 +82,12 @@ export const useGameConnection = (localPlayerName: string) => {
                         players: [...currentGameState.players, newPlayer],
                         turnHistory: [...currentGameState.turnHistory, `${newPlayer.name} has joined.`]
                     };
-
-                    setGameState(newGameState);
-
-                    // Welcome the new player with the full state
+                    
+                    // Welcome the new player with the full state. The host sends the welcome.
                     connectionsRef.current[fromPeerId]?.send({ type: 'welcome', payload: newGameState });
                     
-                    // Notify all other players
-                    broadcastGameState(newGameState);
+                    // Then, broadcast the new state to all players including the new one.
+                    setTimeout(() => broadcastGameState(newGameState), 100);
                 }
                 break;
             case 'welcome':
@@ -86,46 +98,66 @@ export const useGameConnection = (localPlayerName: string) => {
                 toast({ variant: 'destructive', title: 'Game is full', description: 'Could not join the game because it is full.' });
                 setRole('none');
                 break;
+            case 'player_left':
+                if (role === 'host' && gameStateRef.current) {
+                    const leavingPlayer = gameStateRef.current.players.find(p => p.peerId === message.payload.peerId);
+                    if (leavingPlayer) {
+                        const newGameState = {
+                            ...gameStateRef.current,
+                            players: gameStateRef.current.players.filter(p => p.peerId !== message.payload.peerId),
+                            turnHistory: [...gameStateRef.current.turnHistory, `${leavingPlayer.name} has left.`]
+                        };
+                        toast({title: "Player Left", description: `${leavingPlayer.name} has left the game.`});
+                        broadcastGameState(newGameState);
+                    }
+                }
+                break;
         }
-    };
-
+    }, [role, toast, broadcastGameState]);
+    
     const initializePeer = useCallback(() => {
-        // Dynamically import PeerJS only on the client side
         import('peerjs').then(({ default: Peer }) => {
-            if (peerRef.current) {
-                peerRef.current.destroy();
-            }
+            if (peerRef.current) return;
 
-            const newPeer = new Peer();
+            const newPeer = new Peer({
+                secure: true,
+                host: 'peerjs.92k.de',
+                port: 443,
+            });
             peerRef.current = newPeer;
-            setPeer(newPeer);
             setStatus('connecting');
 
             newPeer.on('open', (id) => {
                 setMyPeerId(id);
                 setStatus('connected');
-                console.log('My peer ID is: ' + id);
             });
 
             newPeer.on('connection', (conn) => {
-                console.log(`Incoming connection from ${conn.peer}`);
                 conn.on('open', () => {
                     setConnections(prev => ({ ...prev, [conn.peer]: conn }));
                     conn.on('data', (data) => handleIncomingMessage(data as Message, conn.peer));
                     conn.on('close', () => {
-                         console.log(`Connection closed from ${conn.peer}`);
-                        // Handle player leaving if necessary
+                        handleIncomingMessage({ type: 'player_left', payload: { peerId: conn.peer } }, 'system');
+                        setConnections(prev => {
+                            const newConns = { ...prev };
+                            delete newConns[conn.peer];
+                            return newConns;
+                        });
                     });
                 });
             });
 
             newPeer.on('error', (err) => {
                 console.error('PeerJS error:', err);
-                toast({ variant: 'destructive', title: 'Connection Error', description: err.message });
+                if (err.type === 'peer-unavailable') {
+                     toast({ variant: 'destructive', title: 'Host Unavailable', description: 'Could not connect to the host. The code might be wrong or the game has ended.' });
+                } else {
+                     toast({ variant: 'destructive', title: 'Connection Error', description: 'An unexpected network error occurred.' });
+                }
                 setStatus('error');
             });
         });
-    }, [toast]);
+    }, [toast, handleIncomingMessage]);
 
     useEffect(() => {
         initializePeer();
@@ -135,8 +167,8 @@ export const useGameConnection = (localPlayerName: string) => {
     }, [initializePeer]);
     
     const hostGame = async (initialState: GameState) => {
-        if (!myPeerId) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not get a peer ID to host.'});
+        if (status !== 'connected' || !myPeerId) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Not connected to the server yet. Please wait a moment.'});
             return;
         }
         
@@ -150,7 +182,7 @@ export const useGameConnection = (localPlayerName: string) => {
     };
 
     const joinGame = async (gameCode: string) => {
-        if (!peerRef.current || !myPeerId) {
+        if (status !== 'connected' || !peerRef.current || !myPeerId) {
             toast({ variant: 'destructive', title: 'Connection not ready', description: 'Please wait a moment and try again.'});
             return;
         }
@@ -162,13 +194,16 @@ export const useGameConnection = (localPlayerName: string) => {
                 return;
             }
 
+            if (hostPeerId === myPeerId) {
+                toast({ variant: 'destructive', title: 'Error', description: "You can't join your own game."});
+                return;
+            }
+
             const conn = peerRef.current.connect(hostPeerId);
             setRole('peer');
 
             conn.on('open', () => {
                 setConnections({ [hostPeerId]: conn });
-                console.log(`Connection opened to host ${hostPeerId}`);
-                // Announce presence to host
                 conn.send({ type: 'player_join_request', payload: { peerId: myPeerId, playerName: localPlayerName } });
             });
             
@@ -183,18 +218,6 @@ export const useGameConnection = (localPlayerName: string) => {
         } catch (error: any) {
              toast({ variant: 'destructive', title: 'Error joining game', description: error.message });
         }
-    };
-    
-    const broadcastGameState = (newState: GameState) => {
-        if (role !== 'host') return;
-        console.log("Host broadcasting state:", newState);
-        Object.values(connectionsRef.current).forEach(conn => {
-            if (conn && conn.open) {
-                conn.send({ type: 'game_state_update', payload: newState });
-            }
-        });
-        // The host also updates its own state
-        setGameState(newState);
     };
     
     return { myPeerId, status, role, gameState, hostGame, joinGame, broadcastGameState };

@@ -61,3 +61,14 @@
     @apply font-headline;
   }
 }
+
+.game-background {
+    background-color: #0b4a22;
+    background-image:
+        radial-gradient(circle at 100% 150%, #0b4a22 24%, #0f5a2b 25%, #0f5a2b 28%, #0b4a22 29%, #0b4a22 36%, #0f5a2b 36%, #0f5a2b 40%, transparent 40%, transparent),
+        radial-gradient(circle at 0    150%, #0b4a22 24%, #0f5a2b 25%, #0f5a2b 28%, #0b4a22 29%, #0b4a22 36%, #0f5a2b 36%, #0f5a2b 40%, transparent 40%, transparent),
+        radial-gradient(circle at 50%  100%, #0f5a2b 10%, #0b4a22 11%, #0b4a22 23%, #0f5a2b 24%, #0f5a2b 30%, #0b4a22 31%, #0b4a22 43%, #0f5a2b 44%, #0f5a2b 50%, #0b4a22 51%, #0b4a22 68%, #0f5a2b 69%, #0f5a2b 71%, transparent 71%, transparent),
+        radial-gradient(circle at 100% 50%, #0f5a2b 5%, #0b4a22 6%, #0b4a22 15%, #0f5a2b 16%, #0f5a2b 20%, #0b4a22 21%, #0b4a22 30%, #0f5a2b 31%, #0f5a2b 35%, #0b4a22 36%, #0b4a22 43%, #0f5a2b 44%, #0f5a2b 47%, transparent 47%, transparent),
+        radial-gradient(circle at 0    50%, #0f5a2b 5%, #0b4a22 6%, #0b4a22 15%, #0f5a2b 16%, #0f5a2b 20%, #0b4a22 21%, #0b4a22 30%, #0f5a2b 31%, #0f5a2b 35%, #0b4a22 36%, #0b4a22 43%, #0f5a2b 44%, #0f5a2b 47%, transparent 47%, transparent);
+    background-size: 100px 50px;
+}

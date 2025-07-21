@@ -3,12 +3,13 @@
 import { kv } from '@vercel/kv';
 
 const CODE_TTL_SECONDS = 3600; // 1 hour
+const MAX_ATTEMPTS = 50;
 
 // Simple in-memory fallback for local development if Vercel KV is not configured
 const memoryStore = new Map<string, string>();
 
 const useVercelKV = () => {
-    return process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
+  return !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN;
 };
 
 const generateUniqueCode = async (): Promise<string> => {
@@ -21,17 +22,19 @@ const generateUniqueCode = async (): Promise<string> => {
         if (useVercelKV()) {
             isUnique = !(await kv.exists(`code:${code}`));
         } else {
+            console.log("Using in-memory store for room codes.");
             isUnique = !memoryStore.has(`code:${code}`);
         }
         attempts++;
-    } while (!isUnique && attempts < 50); // Try 50 times before giving up
+    } while (!isUnique && attempts < MAX_ATTEMPTS);
 
     if (!isUnique) {
-        throw new Error("Could not generate a unique room code.");
+        throw new Error("Could not generate a unique room code. The service might be busy.");
     }
 
     return code;
 };
+
 
 export const createRoom = async (peerId: string): Promise<{ code: string }> => {
     try {
@@ -39,20 +42,24 @@ export const createRoom = async (peerId: string): Promise<{ code: string }> => {
         
         if (useVercelKV()) {
             await kv.set(`code:${code}`, peerId, { ex: CODE_TTL_SECONDS });
-            await kv.set(`peer:${peerId}`, code, { ex: CODE_TTL_SECONDS });
         } else {
             memoryStore.set(`code:${code}`, peerId);
-            memoryStore.set(`peer:${peerId}`, code);
+            // Simulate TTL for memory store
+            setTimeout(() => memoryStore.delete(`code:${code}`), CODE_TTL_SECONDS * 1000);
         }
 
         return { code };
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error creating room:', error);
-        throw new Error('Could not connect to the room service. Please try again.');
+        throw new Error(`Failed to create room: ${error.message}`);
     }
 };
 
 export const getPeerIdFromCode = async (code: string): Promise<{ peerId: string | null }> => {
+    if (!/^\d{4}$/.test(code)) {
+        return { peerId: null };
+    }
+    
     try {
         let peerId: string | null;
         if (useVercelKV()) {
@@ -61,8 +68,8 @@ export const getPeerIdFromCode = async (code: string): Promise<{ peerId: string 
             peerId = memoryStore.get(`code:${code}`) || null;
         }
         return { peerId };
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error retrieving peer ID from code:', error);
-        throw new Error('Could not connect to the room service. Please try again.');
+        throw new Error(`Failed to retrieve room: ${error.message}`);
     }
 };

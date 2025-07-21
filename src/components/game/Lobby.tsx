@@ -1,18 +1,18 @@
-
 'use client';
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card as UICard, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from "@/hooks/use-toast";
 import GameBoard from "./GameBoard";
 import { type GameState, createDeck, dealCards } from "@/lib/game";
-import { Loader2, Users, Copy } from "lucide-react";
+import { Loader2, Users, Copy, Sprout, DollarSign } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useGameConnection } from "@/hooks/useGameConnection";
+import { SpadeIcon, HeartIcon, DiamondIcon } from './SuitIcons';
 
 type View = 'main' | 'lobby' | 'game';
 
@@ -50,7 +50,7 @@ export default function Lobby() {
         };
         
         const initialGameState: GameState = {
-            id: '', // This will be replaced by the peer id
+            id: '', // This will be replaced by the room code
             phase: 'lobby',
             playerCount,
             players: [hostPlayer],
@@ -74,13 +74,14 @@ export default function Lobby() {
     
     const handleJoinGame = async () => {
         if (!playerName.trim() || !joinGameId.trim()) {
-            toast({ variant: 'destructive', title: 'Please enter your name and a game code.' });
+            toast({ variant: 'destructive', title: 'Please enter your name and a 4-digit game code.' });
             return;
         }
         
         setIsLoading(true);
         await joinGame(joinGameId);
         // Transition to lobby will be handled by state updates from the host
+        // We optimistically set to lobby, but connection errors might revert this
         setView('lobby');
         setIsLoading(false);
     };
@@ -91,13 +92,12 @@ export default function Lobby() {
 
         let updatedState = { ...gameState };
         
-        // Deal cards and set game to bidding phase
         const dealtPlayers = dealCards(updatedState.deck, updatedState.players);
         updatedState.players = dealtPlayers;
         updatedState.phase = 'bidding';
         updatedState.turnHistory.push(`The game has started!`);
         
-        broadcastGameState(updatedState); // Send the final "start game" state to all peers
+        broadcastGameState(updatedState);
         setView('game');
         setIsLoading(false);
     }
@@ -110,7 +110,7 @@ export default function Lobby() {
 
     if (view === 'game' && gameState) {
         const localPlayer = gameState.players.find(p => p.peerId === myPeerId);
-        if (!localPlayer) return <div className="w-full h-screen flex items-center justify-center"><Loader2 className="animate-spin mr-2" /> Joining game...</div>
+        if (!localPlayer) return <div className="w-full h-screen flex items-center justify-center game-background"><Loader2 className="animate-spin mr-2" /> Joining game...</div>
 
         return <GameBoard
             initialGameState={gameState}
@@ -125,18 +125,18 @@ export default function Lobby() {
         const allPlayersJoined = gameState.players.length === gameState.playerCount;
 
         return (
-            <div className="w-full h-screen flex items-center justify-center bg-background p-4">
-                 <Card className="w-full max-w-md shadow-2xl">
+            <div className="w-full h-screen flex items-center justify-center p-4">
+                 <UICard className="w-full max-w-md shadow-2xl bg-card/80 backdrop-blur-sm border-black/20">
                     <CardHeader className="text-center">
                         <CardTitle className="text-3xl font-bold text-primary">Game Lobby</CardTitle>
-                        <CardDescription>Share this code with your friends!</CardDescription>
+                        <CardDescription>Share the 4-digit code with your friends!</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="flex items-center justify-center">
-                            <div className="text-lg font-mono tracking-widest bg-muted p-4 rounded-lg border flex items-center gap-4 w-full break-all">
+                            <div className="text-4xl font-mono tracking-widest bg-muted/80 p-4 rounded-lg border-2 border-primary/50 flex items-center justify-center gap-4 w-full break-all">
                                 {gameState.id ? (
                                     <>
-                                        <span className="flex-1 text-center">{gameState.id}</span>
+                                        <span className="flex-1 text-center text-primary font-bold">{gameState.id}</span>
                                         <Button variant="ghost" size="icon" onClick={copyGameId}><Copy className="w-6 h-6"/></Button>
                                     </>
                                 ) : (
@@ -146,11 +146,11 @@ export default function Lobby() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label className="flex items-center gap-2 text-lg"><Users /> Players ({gameState.players.length}/{gameState.playerCount})</Label>
-                            <div className="space-y-1 rounded-md bg-muted p-3">
+                            <Label className="flex items-center gap-2 text-lg font-bold"><Users /> Players ({gameState.players.length}/{gameState.playerCount})</Label>
+                            <div className="space-y-2 rounded-md bg-muted/80 p-3 border">
                                 {gameState.players.map(p => (
-                                    <div key={p.id} className="flex items-center justify-between">
-                                        <span>{p.name} {p.peerId === myPeerId && '(You)'}</span>
+                                    <div key={p.id} className="flex items-center justify-between p-2 rounded-md bg-background/50">
+                                        <span className="font-semibold">{p.name} {p.peerId === myPeerId && '(You)'}</span>
                                         {p.id === 0 && <Badge>Host</Badge>}
                                     </div>
                                 ))}
@@ -158,24 +158,30 @@ export default function Lobby() {
                         </div>
 
                         {isHost && (
-                             <Button className="w-full h-12 text-lg" onClick={handleStartGame} disabled={!allPlayersJoined || isLoading}>
+                             <Button className="w-full h-12 text-lg font-bold" onClick={handleStartGame} disabled={!allPlayersJoined || isLoading}>
                                 {isLoading ? <Loader2 className="animate-spin"/> : (allPlayersJoined ? 'Start Game' : `Waiting for ${gameState.playerCount - gameState.players.length} more players...`)}
                              </Button>
                         )}
-                        {!isHost && <p className="text-center text-muted-foreground">Waiting for the host to start the game...</p>}
+                        {!isHost && <div className="flex items-center justify-center text-muted-foreground p-3 bg-muted/50 rounded-md"><Loader2 className="mr-2 animate-spin"/>Waiting for the host to start the game...</div>}
                     </CardContent>
-                 </Card>
+                 </UICard>
             </div>
         )
     }
 
     return (
-        <div className="w-full h-screen flex items-center justify-center bg-background p-4">
+        <div className="w-full h-screen flex items-center justify-center p-4 relative overflow-hidden">
+             {/* Decorative elements */}
+            <SpadeIcon className="absolute -bottom-12 -left-12 text-black/10 w-48 h-48 rotate-[-30deg]" />
+            <HeartIcon className="absolute -top-20 -right-16 text-black/10 w-56 h-56 rotate-[20deg]" />
+            <DollarSign className="absolute bottom-24 right-10 text-black/5 w-32 h-32 rotate-[15deg]"/>
+            <DiamondIcon className="absolute top-24 left-10 text-black/10 w-24 h-24 rotate-[15deg]"/>
+
             <motion.div
                 layout
-                className="w-full max-w-md"
+                className="w-full max-w-md z-10"
             >
-            <Card className="shadow-2xl">
+            <UICard className="shadow-2xl bg-card/80 backdrop-blur-sm border-black/20">
                 <CardHeader className="text-center">
                     <CardTitle className="text-4xl font-bold text-primary mb-2">Kaali Teeri</CardTitle>
                     <CardDescription>The classic card game, online.</CardDescription>
@@ -188,44 +194,50 @@ export default function Lobby() {
                         </div>
                         {status === 'connecting' && <div className="flex items-center justify-center text-muted-foreground"><Loader2 className="mr-2 animate-spin"/>Connecting to server...</div>}
                         
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="player-count">Players</Label>
-                                <Select defaultValue={String(playerCount)} onValueChange={(val) => setPlayerCount(parseInt(val))} disabled={isLoading}>
-                                    <SelectTrigger id="player-count">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                    {[4, 5, 6, 7, 8].map(n => <SelectItem key={n} value={String(n)}>{n} Players</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="flex flex-col justify-end">
-                                <Button className="w-full h-10" onClick={handleCreateGame} disabled={isLoading || status !== 'connected'}>
-                                   {isLoading ? <Loader2 className="animate-spin" /> : 'Create Table'}
-                                </Button>
+                        <div className="p-4 bg-muted/50 rounded-lg border space-y-4">
+                            <h3 className="text-lg font-bold text-center">Create a New Game</h3>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="player-count">Players</Label>
+                                    <Select defaultValue={String(playerCount)} onValueChange={(val) => setPlayerCount(parseInt(val))} disabled={isLoading}>
+                                        <SelectTrigger id="player-count">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                        {[4, 5, 6, 7, 8].map(n => <SelectItem key={n} value={String(n)}>{n} Players</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="flex flex-col justify-end">
+                                    <Button className="w-full h-10" onClick={handleCreateGame} disabled={isLoading || status !== 'connected'}>
+                                       {isLoading && role!=='host' ? <Loader2 className="animate-spin" /> : 'Create Table'}
+                                    </Button>
+                                </div>
                             </div>
                         </div>
                         
                         <div className="relative my-4">
                             <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                            <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Or</span></div>
+                            <div className="relative flex justify-center text-xs uppercase"><span className="bg-card/80 px-2 text-muted-foreground">Or</span></div>
                         </div>
-
-                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="game-id">Game Code</Label>
-                                <Input id="game-id" placeholder="Enter game code..." value={joinGameId} onChange={(e) => setJoinGameId(e.target.value)} />
-                            </div>
-                             <div className="flex flex-col justify-end">
-                                <Button variant="secondary" className="w-full h-10" onClick={handleJoinGame} disabled={isLoading || status !== 'connected'}>
-                                    {isLoading ? <Loader2 className="animate-spin" /> : 'Join Game'}
-                                </Button>
+                        
+                         <div className="p-4 bg-muted/50 rounded-lg border space-y-4">
+                            <h3 className="text-lg font-bold text-center">Join a Game</h3>
+                             <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="game-id">4-Digit Code</Label>
+                                    <Input id="game-id" placeholder="1234" value={joinGameId} onChange={(e) => setJoinGameId(e.target.value)} />
+                                </div>
+                                 <div className="flex flex-col justify-end">
+                                    <Button variant="secondary" className="w-full h-10" onClick={handleJoinGame} disabled={isLoading || status !== 'connected'}>
+                                        {isLoading && role==='peer' ? <Loader2 className="animate-spin" /> : 'Join Game'}
+                                    </Button>
+                                 </div>
                              </div>
                          </div>
                      </motion.div>
                 </CardContent>
-            </Card>
+            </UICard>
             </motion.div>
         </div>
     );
