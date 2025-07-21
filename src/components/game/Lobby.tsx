@@ -12,14 +12,15 @@ import { Badge } from "@/components/ui/badge";
 type LobbyProps = {
     gameState: GameState;
     myPeerId: string;
-    roomCode: string | null;
     isHost: boolean;
     onStartGame: () => void;
     isStartingGame: boolean;
 };
 
-export default function Lobby({ gameState, myPeerId, roomCode, isHost, onStartGame, isStartingGame }: LobbyProps) {
+export default function Lobby({ gameState, myPeerId, isHost, onStartGame, isStartingGame }: LobbyProps) {
     const { toast } = useToast();
+
+    const roomCode = isHost ? myPeerId : gameState.id;
 
     const copyGameCode = () => {
         if (!roomCode) return;
@@ -63,11 +64,11 @@ export default function Lobby({ gameState, myPeerId, roomCode, isHost, onStartGa
                         <CardDescription>Share the room code with your friends to join!</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        {isHost && roomCode && (
+                        {roomCode && (
                             <div className="flex flex-col items-center justify-center space-y-2">
                                 <Label>Room Code</Label>
                                 <div className="flex items-center gap-2">
-                                    <div className="text-4xl font-mono tracking-widest bg-muted p-3 rounded-lg border">
+                                    <div className="text-lg font-mono tracking-widest bg-muted p-3 rounded-lg border max-w-full overflow-x-auto">
                                         {roomCode}
                                     </div>
                                     <Button variant="ghost" size="icon" onClick={copyGameCode} aria-label="Copy code">
@@ -96,11 +97,9 @@ export default function Lobby({ gameState, myPeerId, roomCode, isHost, onStartGa
                                 </Button>
                             )}
                             {!isHost && <div className="w-full flex items-center justify-center text-muted-foreground p-3 bg-muted/50 rounded-md"><Loader2 className="mr-2 animate-spin"/>Waiting for the host to start...</div>}
-                            {isHost && (
-                                <Button variant="outline" size="lg" onClick={shareGame}>
-                                    <Share2 className="w-5 h-5"/>
-                                </Button>
-                            )}
+                            <Button variant="outline" size="lg" onClick={shareGame}>
+                                <Share2 className="w-5 h-5"/>
+                            </Button>
                         </div>
                     </CardContent>
                 </UICard>

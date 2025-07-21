@@ -36,7 +36,6 @@ export default function Home() {
     isStartingGame,
     startGame,
     status,
-    roomCode,
     initializeConnection,
   } = useGameConnection();
 
@@ -82,11 +81,10 @@ export default function Home() {
     }
   }, [error, toast]);
 
-  if (view === 'lobby' && gameState) {
+  if (view === 'lobby' && gameState && myPeerId) {
     return <Lobby 
       gameState={gameState} 
       myPeerId={myPeerId} 
-      roomCode={roomCode}
       isHost={role === 'host'}
       onStartGame={startGame}
       isStartingGame={isStartingGame}
@@ -163,8 +161,8 @@ export default function Home() {
                 <h3 className="text-lg font-bold text-center text-primary">Join an Existing Game</h3>
                 <div className="flex items-end gap-4">
                   <div className="space-y-2 flex-grow">
-                    <Label htmlFor="game-code">Room Code</Label>
-                    <Input id="game-code" placeholder="Enter 4-digit code..." value={joinCode} onChange={(e) => setJoinCode(e.target.value)} />
+                    <Label htmlFor="game-code">Room Code (Host's ID)</Label>
+                    <Input id="game-code" placeholder="Enter host's ID..." value={joinCode} onChange={(e) => setJoinCode(e.target.value)} />
                   </div>
                   <Button className="h-10 flex-grow" onClick={handleJoinTable} disabled={isLoading || !playerName || joinCode.length === 0}>
                     {isLoading && role === 'peer' ? <Loader2 className="animate-spin" /> : 'Join Game'}

@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Peer, DataConnection } from 'peerjs';
 import { type GameState, type Player, createDeck, dealCards } from '@/lib/game';
-import { createRoom as apiCreateRoom, getRoomHost } from '@/lib/roomCodeService';
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 type PlayerRole = 'host' | 'peer' | 'none';
@@ -30,7 +29,6 @@ export const useGameConnection = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isStartingGame, setIsStartingGame] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [roomCode, setRoomCode] = useState<string | null>(null);
     const [localPlayerName, setLocalPlayerName] = useState<string>('');
 
     const peerRef = useRef<Peer | null>(null);
@@ -173,15 +171,12 @@ export const useGameConnection = () => {
             if (!peerRef.current?.id) throw new Error("Connection not initialized");
             const peerId = peerRef.current.id;
             
-            const { roomCode: newRoomCode } = await apiCreateRoom(peerId);
-            setRoomCode(newRoomCode);
-
             const hostPlayer: Player = {
                 id: 0, name: localPlayerName, peerId, hand: [], isBidder: false, isPartner: false, collectedCards: [], tricksWon: 0, isHost: true
             };
             
             const initialGameState: GameState = {
-                id: newRoomCode,
+                id: peerId, // The game ID is the host's peer ID
                 phase: 'lobby',
                 playerCount: playerCount,
                 players: [hostPlayer],
@@ -209,7 +204,7 @@ export const useGameConnection = () => {
         }
     };
     
-    const joinRoom = async (roomCode: string) => {
+    const joinRoom = async (hostPeerId: string) => {
         setIsLoading(true);
         setError(null);
         setRole('peer');
@@ -217,10 +212,8 @@ export const useGameConnection = () => {
             if (!peerRef.current?.id) throw new Error("Connection not initialized");
             const myId = peerRef.current.id;
             
-            const { hostPeerId } = await getRoomHost(roomCode);
-            
             if (!peerRef.current || !hostPeerId) {
-                throw new Error("Could not find the game host.");
+                throw new Error("Invalid Host ID provided.");
             }
             
             const conn = peerRef.current.connect(hostPeerId);
@@ -242,7 +235,7 @@ export const useGameConnection = () => {
             });
     
             conn.on('error', (err) => {
-                setError("Failed to connect to host. Check the code.");
+                setError("Failed to connect to host. Check the ID.");
                 setRole('none');
                 setConnections({});
             });
@@ -250,7 +243,7 @@ export const useGameConnection = () => {
             return true;
 
         } catch (err: any) {
-             setError(err.message || 'Failed to join the room. Check the code and try again.');
+             setError(err.message || 'Failed to join the room. Check the ID and try again.');
              setRole('none');
              setIsLoading(false);
              return false;
@@ -272,5 +265,5 @@ export const useGameConnection = () => {
         setIsStartingGame(false);
     }
     
-    return { myPeerId, status, role, gameState, isLoading, isStartingGame, error, createRoom, joinRoom, broadcastGameState, startGame, roomCode, initializeConnection };
+    return { myPeerId, status, role, gameState, isLoading, isStartingGame, error, createRoom, joinRoom, broadcastGameState, startGame, initializeConnection };
 };
