@@ -35,7 +35,8 @@ export default function Home() {
     broadcastGameState,
     isStartingGame,
     startGame,
-    status
+    status,
+    roomCode, // <-- New state for the 4-digit code
   } = useGameConnection(playerName);
 
   const handleCreateTable = async () => {
@@ -76,6 +77,7 @@ export default function Home() {
     return <Lobby 
       gameState={gameState} 
       myPeerId={myPeerId} 
+      roomCode={roomCode}
       isHost={role === 'host'}
       onStartGame={startGame}
       isStartingGame={isStartingGame}
@@ -93,10 +95,10 @@ export default function Home() {
     />;
   }
 
-  const copyMyPeerId = () => {
-    if (!myPeerId) return;
-    navigator.clipboard.writeText(myPeerId);
-    toast({ title: "Copied!", description: "Your join code has been copied." });
+  const copyRoomCode = () => {
+    if (!roomCode) return;
+    navigator.clipboard.writeText(roomCode);
+    toast({ title: "Copied!", description: "Room code has been copied." });
   }
 
   return (
@@ -142,12 +144,12 @@ export default function Home() {
                       {isLoading && role === 'host' ? <Loader2 className="animate-spin" /> : 'Create Table'}
                   </Button>
                 </div>
-                 {role === 'host' && myPeerId && view === 'menu' && (
+                 {role === 'host' && roomCode && view === 'menu' && (
                     <div className="flex flex-col items-center gap-2 pt-2">
-                        <Label>Your Join Code (Share with friends)</Label>
+                        <Label>Your Room Code (Share with friends)</Label>
                         <div className="flex items-center gap-2 p-2 bg-background rounded-md border w-full">
-                            <Input readOnly value={myPeerId} className="border-none text-center tracking-wider"/>
-                            <Button size="icon" variant="ghost" onClick={copyMyPeerId}><Copy /></Button>
+                            <Input readOnly value={roomCode} className="border-none text-center tracking-widest font-bold text-xl"/>
+                            <Button size="icon" variant="ghost" onClick={copyRoomCode}><Copy /></Button>
                         </div>
                     </div>
                 )}
@@ -162,8 +164,8 @@ export default function Home() {
                 <h3 className="text-lg font-bold text-center text-primary">Join an Existing Game</h3>
                 <div className="flex items-end gap-4">
                   <div className="space-y-2 flex-grow">
-                    <Label htmlFor="game-code">Host's Code</Label>
-                    <Input id="game-code" placeholder="Paste host's code..." value={joinCode} onChange={(e) => setJoinCode(e.target.value)} />
+                    <Label htmlFor="game-code">Room Code</Label>
+                    <Input id="game-code" placeholder="Enter 4-digit code..." value={joinCode} onChange={(e) => setJoinCode(e.target.value)} />
                   </div>
                   <Button className="h-10 flex-grow" onClick={handleJoinTable} disabled={isLoading || !playerName || joinCode.length === 0}>
                     {isLoading && role === 'peer' ? <Loader2 className="animate-spin" /> : 'Join Game'}

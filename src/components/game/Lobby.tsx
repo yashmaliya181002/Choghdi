@@ -12,27 +12,26 @@ import { Badge } from "@/components/ui/badge";
 type LobbyProps = {
     gameState: GameState;
     myPeerId: string;
+    roomCode: string | null;
     isHost: boolean;
     onStartGame: () => void;
     isStartingGame: boolean;
 };
 
-export default function Lobby({ gameState, myPeerId, isHost, onStartGame, isStartingGame }: LobbyProps) {
+export default function Lobby({ gameState, myPeerId, roomCode, isHost, onStartGame, isStartingGame }: LobbyProps) {
     const { toast } = useToast();
 
-    const gameCode = gameState.id; // The game ID is the host's PeerJS ID
-
     const copyGameCode = () => {
-        if (!gameCode) return;
-        navigator.clipboard.writeText(gameCode);
-        toast({ title: "Copied!", description: "Host's code copied to clipboard." });
+        if (!roomCode) return;
+        navigator.clipboard.writeText(roomCode);
+        toast({ title: "Copied!", description: "Room code copied to clipboard." });
     }
 
     const shareGame = () => {
-        if (navigator.share && gameCode) {
+        if (navigator.share && roomCode) {
             navigator.share({
                 title: 'Kaali Teeri Game',
-                text: `Join my Kaali Teeri game with this code: ${gameCode}`,
+                text: `Join my Kaali Teeri game with this code: ${roomCode}`,
                 url: window.location.href
             }).catch(err => console.log("Couldn't share", err));
         } else {
@@ -61,20 +60,22 @@ export default function Lobby({ gameState, myPeerId, isHost, onStartGame, isStar
                 <UICard className="w-full max-w-lg shadow-2xl bg-card/90 backdrop-blur-sm border-black/20">
                     <CardHeader className="text-center">
                         <CardTitle className="text-3xl font-bold text-primary">Game Lobby</CardTitle>
-                        <CardDescription>Share the host's code with your friends to join!</CardDescription>
+                        <CardDescription>Share the room code with your friends to join!</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        <div className="flex flex-col items-center justify-center space-y-2">
-                            <Label>Host's Code</Label>
-                            <div className="flex items-center gap-2">
-                                <div className="text-lg font-mono tracking-wider bg-muted p-3 rounded-lg border max-w-xs overflow-x-auto">
-                                    {gameCode || '----'}
+                        {isHost && roomCode && (
+                            <div className="flex flex-col items-center justify-center space-y-2">
+                                <Label>Room Code</Label>
+                                <div className="flex items-center gap-2">
+                                    <div className="text-4xl font-mono tracking-widest bg-muted p-3 rounded-lg border">
+                                        {roomCode}
+                                    </div>
+                                    <Button variant="ghost" size="icon" onClick={copyGameCode} aria-label="Copy code">
+                                        <Copy className="w-6 h-6"/>
+                                    </Button>
                                 </div>
-                                <Button variant="ghost" size="icon" onClick={copyGameCode} aria-label="Copy code">
-                                    <Copy className="w-6 h-6"/>
-                                </Button>
                             </div>
-                        </div>
+                        )}
 
                         <div className="space-y-2">
                             <Label className="flex items-center gap-2 text-lg font-bold"><Users /> Players ({gameState.players.length}/{gameState.playerCount})</Label>
@@ -95,9 +96,11 @@ export default function Lobby({ gameState, myPeerId, isHost, onStartGame, isStar
                                 </Button>
                             )}
                             {!isHost && <div className="w-full flex items-center justify-center text-muted-foreground p-3 bg-muted/50 rounded-md"><Loader2 className="mr-2 animate-spin"/>Waiting for the host to start...</div>}
-                            <Button variant="outline" size="lg" onClick={shareGame}>
-                                <Share2 className="w-5 h-5"/>
-                            </Button>
+                            {isHost && (
+                                <Button variant="outline" size="lg" onClick={shareGame}>
+                                    <Share2 className="w-5 h-5"/>
+                                </Button>
+                            )}
                         </div>
                     </CardContent>
                 </UICard>

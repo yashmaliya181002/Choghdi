@@ -1,11 +1,13 @@
 
+
 const getBaseUrl = () => {
     if (process.env.NEXT_PUBLIC_VERCEL_URL) {
-      return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
+        return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
     }
     // Assume localhost for local development
-    return 'http://localhost:9002';
+    return 'http://localhost:3000'; // Default to 3000 if not specified
 };
+
 
 export async function createRoom(hostPeerId: string): Promise<{ roomCode: string }> {
   const res = await fetch(`${getBaseUrl()}/api/room`, {
@@ -14,7 +16,8 @@ export async function createRoom(hostPeerId: string): Promise<{ roomCode: string
     body: JSON.stringify({ hostPeerId }),
   });
   if (!res.ok) {
-    throw new Error('Failed to create room on server');
+    const errorBody = await res.json().catch(() => ({ error: 'Failed to create room on server' }));
+    throw new Error(errorBody.error);
   }
   return res.json();
 }
@@ -25,7 +28,8 @@ export async function getRoomHost(roomCode: string): Promise<{ hostPeerId: strin
     if (res.status === 404) {
         throw new Error('Room code not found.');
     }
-    throw new Error('Failed to look up room on server');
+    const errorBody = await res.json().catch(() => ({ error: 'Failed to look up room on server' }));
+    throw new Error(errorBody.error);
   }
   return res.json();
 }
