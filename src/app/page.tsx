@@ -37,32 +37,30 @@ export default function Home() {
     startGame,
     status,
     roomCode,
-  } = useGameConnection(playerName);
+    initializeConnection,
+  } = useGameConnection();
 
-  // Set local player name from session storage on initial load
+  // Handle initialization and navigation based on game state
   useEffect(() => {
-    const savedName = sessionStorage.getItem('playerName');
-    if (savedName) {
-      setPlayerName(savedName);
+    if (gameState) {
+      if (gameState.phase === 'lobby') {
+        setView('lobby');
+      } else {
+        setView('game');
+      }
+    } else {
+      setView('menu');
     }
-  }, []);
+  }, [gameState]);
 
-  // Update session storage when player name changes
-  useEffect(() => {
-    if (playerName) {
-      sessionStorage.setItem('playerName', playerName);
-    }
-  }, [playerName]);
 
   const handleCreateTable = async () => {
     if (!playerName.trim()) {
       toast({ variant: 'destructive', title: 'Please enter your name.' });
       return;
     }
-    const created = await createRoom(parseInt(playerCount, 10));
-    if (created) {
-      setView('lobby');
-    }
+    await initializeConnection(playerName);
+    await createRoom(parseInt(playerCount, 10));
   };
 
   const handleJoinTable = async () => {
@@ -74,10 +72,8 @@ export default function Home() {
       toast({ variant: 'destructive', title: 'Please enter a valid join code.' });
       return;
     }
-    const joined = await joinRoom(joinCode);
-    if (joined) {
-      setView('lobby');
-    }
+    await initializeConnection(playerName);
+    await joinRoom(joinCode);
   };
 
   useEffect(() => {
@@ -85,14 +81,6 @@ export default function Home() {
         toast({ variant: 'destructive', title: "Error", description: error });
     }
   }, [error, toast]);
-
-
-  useEffect(() => {
-    if (gameState && view === 'lobby' && gameState.phase !== 'lobby') {
-        setView('game');
-    }
-  }, [gameState, view]);
-
 
   if (view === 'lobby' && gameState) {
     return <Lobby 
@@ -119,12 +107,6 @@ export default function Home() {
       isHost={role === 'host'}
       broadcastGameState={role === 'host' ? broadcastGameState : undefined}
     />;
-  }
-
-  const copyRoomCode = () => {
-    if (!roomCode) return;
-    navigator.clipboard.writeText(roomCode);
-    toast({ title: "Copied!", description: "Room code has been copied." });
   }
 
   return (
