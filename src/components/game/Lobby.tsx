@@ -20,7 +20,7 @@ type LobbyProps = {
 export default function Lobby({ gameState, myPeerId, isHost, onStartGame, isStartingGame }: LobbyProps) {
     const { toast } = useToast();
 
-    const roomCode = isHost ? myPeerId : gameState.id;
+    const roomCode = gameState.id; // The game ID is now the 4-digit code
 
     const copyGameCode = () => {
         if (!roomCode) return;
@@ -68,7 +68,7 @@ export default function Lobby({ gameState, myPeerId, isHost, onStartGame, isStar
                             <div className="flex flex-col items-center justify-center space-y-2">
                                 <Label>Room Code</Label>
                                 <div className="flex items-center gap-2">
-                                    <div className="text-lg font-mono tracking-widest bg-muted p-3 rounded-lg border max-w-full overflow-x-auto">
+                                    <div className="text-4xl font-mono tracking-widest bg-muted p-3 rounded-lg border">
                                         {roomCode}
                                     </div>
                                     <Button variant="ghost" size="icon" onClick={copyGameCode} aria-label="Copy code">

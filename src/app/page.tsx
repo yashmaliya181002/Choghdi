@@ -54,10 +54,8 @@ export default function Home() {
       toast({ variant: 'destructive', title: 'Please enter your name.' });
       return;
     }
-    const peerId = await initializeConnection(playerName);
-    if(peerId){
-        await createRoom(parseInt(playerCount, 10), peerId, playerName);
-    }
+    await initializeConnection(playerName);
+    await createRoom(parseInt(playerCount, 10), playerName);
   };
 
   const handleJoinTable = async () => {
@@ -65,14 +63,12 @@ export default function Home() {
       toast({ variant: 'destructive', title: 'Please enter your name.' });
       return;
     }
-    if (!joinCode.trim()) {
-      toast({ variant: 'destructive', title: 'Please enter a valid join code.' });
+    if (!joinCode.trim() || joinCode.length !== 4) {
+      toast({ variant: 'destructive', title: 'Please enter a valid 4-digit room code.' });
       return;
     }
-    const myId = await initializeConnection(playerName);
-    if(myId){
-        await joinRoom(joinCode, myId, playerName);
-    }
+    await initializeConnection(playerName);
+    await joinRoom(joinCode, playerName);
   };
 
   useEffect(() => {
@@ -160,8 +156,8 @@ export default function Home() {
                 <h3 className="text-lg font-bold text-center text-primary">Join an Existing Game</h3>
                 <div className="flex items-end gap-4">
                   <div className="space-y-2 flex-grow">
-                    <Label htmlFor="game-code">Room Code (Host's ID)</Label>
-                    <Input id="game-code" placeholder="Enter host's ID..." value={joinCode} onChange={(e) => setJoinCode(e.target.value)} />
+                    <Label htmlFor="game-code">4-Digit Room Code</Label>
+                    <Input id="game-code" placeholder="Enter code..." value={joinCode} onChange={(e) => setJoinCode(e.target.value)} />
                   </div>
                   <Button className="h-10 flex-grow" onClick={handleJoinTable} disabled={isLoading || !playerName || joinCode.length === 0}>
                     {isLoading && role === 'peer' ? <Loader2 className="animate-spin" /> : 'Join Game'}
