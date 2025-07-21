@@ -35,7 +35,6 @@ export default function Home() {
     broadcastGameState,
     isStartingGame,
     startGame,
-    status,
     initializeConnection,
   } = useGameConnection();
 
