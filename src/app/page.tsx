@@ -1,6 +1,6 @@
 
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,8 +36,23 @@ export default function Home() {
     isStartingGame,
     startGame,
     status,
-    roomCode, // <-- New state for the 4-digit code
+    roomCode,
   } = useGameConnection(playerName);
+
+  // Set local player name from session storage on initial load
+  useEffect(() => {
+    const savedName = sessionStorage.getItem('playerName');
+    if (savedName) {
+      setPlayerName(savedName);
+    }
+  }, []);
+
+  // Update session storage when player name changes
+  useEffect(() => {
+    if (playerName) {
+      sessionStorage.setItem('playerName', playerName);
+    }
+  }, [playerName]);
 
   const handleCreateTable = async () => {
     if (!playerName.trim()) {
@@ -65,13 +80,19 @@ export default function Home() {
     }
   };
 
-  if (error) {
-    toast({ variant: 'destructive', title: "Error", description: error });
-  }
+  useEffect(() => {
+    if (error) {
+        toast({ variant: 'destructive', title: "Error", description: error });
+    }
+  }, [error, toast]);
 
-  if (gameState && view === 'lobby' && gameState.phase !== 'lobby') {
-    setView('game');
-  }
+
+  useEffect(() => {
+    if (gameState && view === 'lobby' && gameState.phase !== 'lobby') {
+        setView('game');
+    }
+  }, [gameState, view]);
+
 
   if (view === 'lobby' && gameState) {
     return <Lobby 
@@ -86,7 +107,12 @@ export default function Home() {
 
   if (view === 'game' && gameState) {
      const localPlayer = gameState.players.find(p => p.peerId === myPeerId);
-     if (!localPlayer) return <div className="w-full h-screen flex items-center justify-center game-background"><Loader2 className="animate-spin mr-2" /> Waiting for game state...</div>
+     if (!localPlayer) return (
+        <div className="w-full h-screen flex flex-col items-center justify-center game-background text-foreground">
+            <Loader2 className="animate-spin mr-2 h-8 w-8" />
+            <p className="mt-2 text-lg">Syncing game state...</p>
+        </div>
+     )
     return <GameBoard
       initialGameState={gameState}
       localPlayerId={localPlayer.id}
@@ -144,15 +170,6 @@ export default function Home() {
                       {isLoading && role === 'host' ? <Loader2 className="animate-spin" /> : 'Create Table'}
                   </Button>
                 </div>
-                 {role === 'host' && roomCode && view === 'menu' && (
-                    <div className="flex flex-col items-center gap-2 pt-2">
-                        <Label>Your Room Code (Share with friends)</Label>
-                        <div className="flex items-center gap-2 p-2 bg-background rounded-md border w-full">
-                            <Input readOnly value={roomCode} className="border-none text-center tracking-widest font-bold text-xl"/>
-                            <Button size="icon" variant="ghost" onClick={copyRoomCode}><Copy /></Button>
-                        </div>
-                    </div>
-                )}
               </div>
               
               <div className="relative">
