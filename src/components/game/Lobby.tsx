@@ -12,7 +12,7 @@ import { type GameState, createDeck, dealCards } from "@/lib/game";
 import { Loader2, Users, Copy, Sprout, DollarSign } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useGameConnection } from "@/hooks/useGameConnection";
-import { SpadeIcon, HeartIcon, DiamondIcon } from './SuitIcons';
+import { SpadeIcon, HeartIcon, DiamondIcon, ClubIcon } from './SuitIcons';
 
 type View = 'main' | 'lobby' | 'game';
 
@@ -68,13 +68,16 @@ export default function Lobby() {
         };
 
         await hostGame(initialGameState);
-        setView('lobby');
         setIsLoading(false);
     };
     
     const handleJoinGame = async () => {
         if (!playerName.trim() || !joinGameId.trim()) {
             toast({ variant: 'destructive', title: 'Please enter your name and a 4-digit game code.' });
+            return;
+        }
+        if (joinGameId.length !== 4 || !/^\d{4}$/.test(joinGameId)) {
+            toast({ variant: 'destructive', title: 'Invalid Code', description: 'The game code must be exactly 4 digits.' });
             return;
         }
         
@@ -123,7 +126,7 @@ export default function Lobby() {
 
         return (
             <div className="w-full h-screen flex items-center justify-center p-4">
-                 <UICard className="w-full max-w-md shadow-2xl bg-card/80 backdrop-blur-sm border-black/20">
+                 <UICard className="w-full max-w-md shadow-2xl bg-card/90 backdrop-blur-sm border-black/20">
                     <CardHeader className="text-center">
                         <CardTitle className="text-3xl font-bold text-primary">Game Lobby</CardTitle>
                         <CardDescription>Share the 4-digit code with your friends!</CardDescription>
@@ -133,7 +136,7 @@ export default function Lobby() {
                             <div className="text-4xl font-mono tracking-widest bg-muted/80 p-4 rounded-lg border-2 border-primary/50 flex items-center justify-center gap-4 w-full break-all">
                                 {gameState.id ? (
                                     <>
-                                        <span className="flex-1 text-center text-primary font-bold">{gameState.id}</span>
+                                        <span className="flex-1 text-center text-accent font-bold">{gameState.id}</span>
                                         <Button variant="ghost" size="icon" onClick={copyGameId}><Copy className="w-6 h-6"/></Button>
                                     </>
                                 ) : (
@@ -155,7 +158,7 @@ export default function Lobby() {
                         </div>
 
                         {isHost && (
-                             <Button className="w-full h-12 text-lg font-bold" onClick={handleStartGame} disabled={!allPlayersJoined || isLoading}>
+                             <Button className="w-full h-12 text-lg font-bold bg-accent hover:bg-accent/90" onClick={handleStartGame} disabled={!allPlayersJoined || isLoading}>
                                 {isLoading ? <Loader2 className="animate-spin"/> : (allPlayersJoined ? 'Start Game' : `Waiting for ${gameState.playerCount - gameState.players.length} more players...`)}
                              </Button>
                         )}
@@ -169,19 +172,19 @@ export default function Lobby() {
     return (
         <div className="w-full h-screen flex items-center justify-center p-4 relative overflow-hidden">
              {/* Decorative elements */}
-            <SpadeIcon className="absolute -bottom-12 -left-12 text-black/10 w-48 h-48 rotate-[-30deg]" />
-            <HeartIcon className="absolute -top-20 -right-16 text-black/10 w-56 h-56 rotate-[20deg]" />
-            <DollarSign className="absolute bottom-24 right-10 text-black/5 w-32 h-32 rotate-[15deg]"/>
-            <DiamondIcon className="absolute top-24 left-10 text-black/10 w-24 h-24 rotate-[15deg]"/>
+            <SpadeIcon className="absolute -bottom-12 -left-12 text-black/5 w-48 h-48 rotate-[-30deg]" />
+            <HeartIcon className="absolute -top-20 -right-16 text-red-500/5 w-56 h-56 rotate-[20deg]" />
+            <ClubIcon className="absolute bottom-24 right-10 text-black/5 w-32 h-32 rotate-[15deg]"/>
+            <DiamondIcon className="absolute top-24 left-10 text-red-500/5 w-24 h-24 rotate-[15deg]"/>
 
             <motion.div
                 layout
                 className="w-full max-w-md z-10"
             >
-            <UICard className="shadow-2xl bg-card/80 backdrop-blur-sm border-black/20">
+            <UICard className="shadow-2xl bg-card/90 backdrop-blur-sm border-black/20">
                 <CardHeader className="text-center">
                     <CardTitle className="text-4xl font-bold text-primary mb-2">Kaali Teeri</CardTitle>
-                    <CardDescription>The classic card game, online.</CardDescription>
+                    <CardDescription>The classic card game, brought online.</CardDescription>
                 </CardHeader>
                 <CardContent>
                      <motion.div key="main" initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} exit={{opacity: 0, x: 50}} className="space-y-4">
@@ -189,10 +192,10 @@ export default function Lobby() {
                             <Label htmlFor="player-name">Your Name</Label>
                             <Input id="player-name" placeholder="Enter your name..." value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
                         </div>
-                        {status === 'connecting' && <div className="flex items-center justify-center text-muted-foreground"><Loader2 className="mr-2 animate-spin"/>Connecting to server...</div>}
+                        {status === 'connecting' && <div className="flex items-center justify-center text-muted-foreground"><Loader2 className="mr-2 animate-spin"/>Connecting...</div>}
                         
                         <div className="p-4 bg-muted/50 rounded-lg border space-y-4">
-                            <h3 className="text-lg font-bold text-center">Create a New Game</h3>
+                            <h3 className="text-lg font-bold text-center text-primary">Create a New Game</h3>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="player-count">Players</Label>
@@ -207,7 +210,7 @@ export default function Lobby() {
                                 </div>
                                 <div className="flex flex-col justify-end">
                                     <Button className="w-full h-10" onClick={handleCreateGame} disabled={isLoading || status !== 'connected'}>
-                                       {isLoading && role!=='host' ? <Loader2 className="animate-spin" /> : 'Create Table'}
+                                       {isLoading && !gameState ? <Loader2 className="animate-spin" /> : 'Create Table'}
                                     </Button>
                                 </div>
                             </div>
@@ -215,11 +218,11 @@ export default function Lobby() {
                         
                         <div className="relative my-4">
                             <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                            <div className="relative flex justify-center text-xs uppercase"><span className="bg-card/80 px-2 text-muted-foreground">Or</span></div>
+                            <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Or</span></div>
                         </div>
                         
                          <div className="p-4 bg-muted/50 rounded-lg border space-y-4">
-                            <h3 className="text-lg font-bold text-center">Join a Game</h3>
+                            <h3 className="text-lg font-bold text-center text-primary">Join a Game</h3>
                              <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="game-id">4-Digit Code</Label>
@@ -227,7 +230,7 @@ export default function Lobby() {
                                 </div>
                                  <div className="flex flex-col justify-end">
                                     <Button variant="secondary" className="w-full h-10" onClick={handleJoinGame} disabled={isLoading || status !== 'connected'}>
-                                        {isLoading && role==='peer' ? <Loader2 className="animate-spin" /> : 'Join Game'}
+                                        {isLoading && !!joinGameId ? <Loader2 className="animate-spin" /> : 'Join Game'}
                                     </Button>
                                  </div>
                              </div>

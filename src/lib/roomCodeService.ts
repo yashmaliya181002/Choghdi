@@ -1,7 +1,9 @@
 'use server';
 
 // This service uses a simple public "phonebook" to map a 4-digit code to a PeerJS ID.
-// It requires no configuration or external accounts (like Vercel KV).
+// It requires no configuration or external accounts.
+// NOTE: This is for demonstration purposes and has no persistence or security.
+// Data is stored in memory on the service and resets when it restarts.
 
 const PHONEBOOK_URL = 'https://lboy.fly.dev/phonebook';
 
@@ -9,6 +11,9 @@ export const createRoom = async (peerId: string): Promise<string> => {
   try {
     const response = await fetch(`${PHONEBOOK_URL}/${peerId}`, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
     });
 
     if (!response.ok) {
