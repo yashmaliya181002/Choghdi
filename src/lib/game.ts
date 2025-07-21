@@ -1,3 +1,4 @@
+
 export type Suit = 'spades' | 'hearts' | 'diamonds' | 'clubs';
 export type Rank = '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A';
 export type GamePhase = 'lobby' | 'bidding' | 'partner-selection' | 'playing' | 'results';
@@ -15,6 +16,7 @@ export interface Player {
   hand: Card[];
   isBidder: boolean;
   isPartner: boolean;
+  isHost: boolean;
   collectedCards: Card[];
   tricksWon: number;
 }
@@ -30,7 +32,8 @@ export interface Trick {
 }
 
 export interface GameState {
-  id: string; // Game room code (host's peerId)
+  id: string; // Game room code
+  roomCode?: string; // Explicitly add roomCode
   phase: GamePhase;
   players: Player[];
   playerCount: number;
@@ -57,18 +60,14 @@ export const getCardPoints = (card: Card): number => {
     return 0;
 };
 
-export const createDeck = (playerCount: number): Card[] => {
-  let standardDeck: Card[] = SUITS.flatMap(suit =>
+export const createDeck = (): Card[] => {
+  return SUITS.flatMap(suit =>
     RANKS.map(rank => ({
       suit,
       rank,
       id: `${rank.length > 1 ? rank.charAt(0) : rank}${suit.charAt(0).toUpperCase()}`
     }))
   );
-
-  // Note: These rules are simplified. Real game rules can be more complex.
-  // This just uses a standard 52-card deck for all player counts for simplicity.
-  return standardDeck;
 };
 
 export const shuffleDeck = (deck: Card[]): Card[] => {
@@ -85,15 +84,12 @@ export const dealCards = (deck: Card[], players: Player[]): Player[] => {
   const shuffledDeck = shuffleDeck(deck);
   const updatedPlayers = players.map(p => ({...p, hand: []}));
 
-  // Distribute cards as evenly as possible
+  const cardsPerPlayer = Math.floor(shuffledDeck.length / playerCount);
+
   let cardIndex = 0;
-  while (cardIndex < shuffledDeck.length) {
-      for (let i = 0; i < playerCount; i++) {
-          if (cardIndex < shuffledDeck.length) {
-              updatedPlayers[i].hand.push(shuffledDeck[cardIndex]);
-              cardIndex++;
-          }
-      }
+  for (let i = 0; i < playerCount; i++) {
+    updatedPlayers[i].hand = shuffledDeck.slice(cardIndex, cardIndex + cardsPerPlayer);
+    cardIndex += cardsPerPlayer;
   }
 
   // Sort hands for better readability

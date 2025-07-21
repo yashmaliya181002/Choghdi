@@ -1,51 +1,52 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 120 60% 95%;
-    --foreground: 120 20% 10%;
-    --card: 120 60% 95%;
-    --card-foreground: 120 20% 10%;
-    --popover: 120 60% 95%;
-    --popover-foreground: 120 20% 10%;
-    --primary: 140 70% 35%; /* Lush Green */
-    --primary-foreground: 120 60% 98%;
-    --secondary: 130 50% 90%;
-    --secondary-foreground: 120 20% 10%;
-    --muted: 130 50% 90%;
-    --muted-foreground: 120 15% 45%;
+    --background: 210 30% 12%; /* Dark Blue-Gray */
+    --foreground: 210 10% 80%; /* Light Gray */
+    --card: 210 30% 15%; /* Slightly Lighter Dark Blue-Gray */
+    --card-foreground: 210 10% 85%;
+    --popover: 210 30% 12%;
+    --popover-foreground: 210 10% 85%;
+    --primary: 140 60% 50%; /* Lush Green */
+    --primary-foreground: 140 20% 98%;
+    --secondary: 210 20% 25%; /* Muted Blue */
+    --secondary-foreground: 210 10% 90%;
+    --muted: 210 20% 25%;
+    --muted-foreground: 210 10% 60%;
     --accent: 45 95% 59%; /* Gold Accent */
     --accent-foreground: 45 20% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 140 40% 80%;
-    --input: 140 40% 85%;
-    --ring: 140 70% 35%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 20% 30%;
+    --input: 210 20% 30%;
+    --ring: 140 60% 50%;
     --radius: 0.5rem;
   }
 
   .dark {
-    --background: 120 25% 10%;
-    --foreground: 120 10% 95%;
-    --card: 120 25% 10%;
-    --card-foreground: 120 10% 95%;
-    --popover: 120 25% 10%;
-    --popover-foreground: 120 10% 95%;
-    --primary: 140 70% 35%;
-    --primary-foreground: 120 10% 98%;
-    --secondary: 130 20% 15%;
-    --secondary-foreground: 120 10% 98%;
-    --muted: 130 20% 15%;
-    --muted-foreground: 120 10% 65%;
+    --background: 210 30% 12%;
+    --foreground: 210 10% 80%;
+    --card: 210 30% 15%;
+    --card-foreground: 210 10% 85%;
+    --popover: 210 30% 12%;
+    --popover-foreground: 210 10% 85%;
+    --primary: 140 60% 50%;
+    --primary-foreground: 140 20% 98%;
+    --secondary: 210 20% 25%;
+    --secondary-foreground: 210 10% 90%;
+    --muted: 210 20% 25%;
+    --muted-foreground: 210 10% 60%;
     --accent: 45 95% 59%;
     --accent-foreground: 45 20% 10%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 130 20% 20%;
-    --input: 130 20% 20%;
-    --ring: 140 70% 35%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 20% 30%;
+    --input: 210 20% 30%;
+    --ring: 140 60% 50%;
   }
 }
 
@@ -64,10 +65,9 @@
 }
 
 .game-background {
-  background-color: #166534; /* A rich green */
-  background-image: 
-    radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-  background-size: 20px 20px;
-  background-position: 0 0, 10px 10px;
+  background-color: #14532d; /* A rich, dark green */
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.04) 1px, transparent 0),
+    url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><path fill-rule="evenodd" d="M49 49v2h2v-2h-2zm-2 2v-2h-2v2h2zm4 0v-2h2v2h-2z" fill="rgba(255,255,255,0.02)"/></svg>');
+  background-size: 20px 20px, 100px 100px;
 }

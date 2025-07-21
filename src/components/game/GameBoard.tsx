@@ -17,14 +17,15 @@ import { Crown, Users, Trophy, Info } from 'lucide-react';
 import Confetti from 'react-confetti';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 const SuitSelectIcon = ({ suit }: { suit: Card['suit'] }) => {
     const commonClass = "w-5 h-5 mr-2";
     switch(suit) {
         case 'spades': return <SpadeIcon className={commonClass} />;
-        case 'hearts': return <HeartIcon className={cn("text-red-600", commonClass)} />;
+        case 'hearts': return <HeartIcon className={cn("text-red-500", commonClass)} />;
         case 'clubs': return <ClubIcon className={commonClass} />;
-        case 'diamonds': return <DiamondIcon className={cn("text-red-600", commonClass)} />;
+        case 'diamonds': return <DiamondIcon className={cn("text-red-500", commonClass)} />;
     }
 }
 
@@ -66,8 +67,8 @@ export default function GameBoard({ initialGameState, localPlayerId, isHost, bro
     if (localPlayerIndex === -1) return {};
 
     // Use a smaller radius for more players to keep them on screen
-    const baseRadiusX = window.innerWidth < 768 ? 0.35 : 0.4;
-    const baseRadiusY = window.innerHeight < 768 ? 0.3 : 0.35;
+    const baseRadiusX = window.innerWidth < 768 ? 0.38 : 0.42;
+    const baseRadiusY = window.innerHeight < 768 ? 0.35 : 0.38;
     const radiusMultiplier = Math.max(0.7, 1 - (playerCount - 4) * 0.05);
 
     const radiusX = window.innerWidth * baseRadiusX * radiusMultiplier;
@@ -78,7 +79,7 @@ export default function GameBoard({ initialGameState, localPlayerId, isHost, bro
         
         if (relativeIndex === 0) { // Local player
             positions[player.id] = {
-                bottom: `5%`,
+                bottom: `2%`,
                 left: `50%`,
                 transform: 'translateX(-50%)'
             }
@@ -86,7 +87,7 @@ export default function GameBoard({ initialGameState, localPlayerId, isHost, bro
              // Distribute other players in the top semi-circle
             const angle = Math.PI + (relativeIndex / (playerCount)) * Math.PI;
             const x = 50 + (radiusX / window.innerWidth * 100) * Math.cos(angle);
-            const y = 50 + (radiusY / window.innerHeight * 100) * Math.sin(angle) * 1.5; // Use more vertical space
+            const y = 45 + (radiusY / window.innerHeight * 100) * Math.sin(angle) * 1.5; // Use more vertical space
             positions[player.id] = {
                 top: `${y}%`,
                 left: `${x}%`,
@@ -314,7 +315,7 @@ export default function GameBoard({ initialGameState, localPlayerId, isHost, bro
       winningPlayerInState.tricksWon = (winningPlayerInState.tricksWon || 0) + 1;
       
       currentState.tricksPlayed += 1;
-      const maxTricks = Math.floor(currentState.deck.length / currentState.playerCount);
+      const maxTricks = Math.floor(52 / currentState.playerCount);
 
       if (currentState.tricksPlayed === maxTricks) {
           const bidderTeam = currentState.players.filter(p => p.isBidder || p.isPartner);
@@ -336,11 +337,32 @@ export default function GameBoard({ initialGameState, localPlayerId, isHost, bro
       return currentState;
   }
   
-  const resetGame = () => {
-    // This is more complex now. Only the host can reset.
-    // A proper implementation would send a "reset_game" message.
-    // For now, this is disabled as it would only work for the host.
-    toast({ title: "Game Reset", description: "Only the host can start a new game." });
+  const handleNextRound = () => {
+    if (!isHost || !broadcastGameState) return;
+    setShowResults(false);
+
+    let nextState = JSON.parse(JSON.stringify(initialGameState)); // Reset to initial structure
+
+    // Reset players, keep names and IDs
+    nextState.players = gameState.players.map(p => ({
+        id: p.id,
+        peerId: p.peerId,
+        name: p.name,
+        hand: [],
+        isBidder: false,
+        isPartner: false,
+        collectedCards: [],
+        tricksWon: 0,
+    }));
+    
+    // Deal new cards
+    const dealtPlayers = dealCards(nextState.deck, nextState.players);
+    nextState.players = dealtPlayers;
+    nextState.phase = 'bidding';
+    nextState.currentPlayerId = 0; // Or last winner logic
+    nextState.turnHistory = ['New round started!'];
+
+    broadcastGameState(nextState);
   }
 
   if (!gameState || !currentPlayer || !localPlayer) return <div>Loading Game...</div>;
@@ -374,8 +396,14 @@ export default function GameBoard({ initialGameState, localPlayerId, isHost, bro
                {player.name}
             </Badge>
             <div className="flex gap-2 items-center">
-                {player.isBidder && <Badge title="Bidder"><Crown className="w-4 h-4" /> </Badge>}
-                {player.isPartner && <Badge variant="secondary" title="Partner"><Users className="w-4 h-4"/></Badge>}
+                <TooltipProvider><Tooltip>
+                    <TooltipTrigger>{player.isBidder && <Badge><Crown className="w-4 h-4" /> </Badge>}</TooltipTrigger>
+                    <TooltipContent><p>Bidder</p></TooltipContent>
+                </Tooltip></TooltipProvider>
+                <TooltipProvider><Tooltip>
+                    <TooltipTrigger>{player.isPartner && <Badge variant="secondary"><Users className="w-4 h-4"/></Badge>}</TooltipTrigger>
+                    <TooltipContent><p>Partner</p></TooltipContent>
+                </Tooltip></TooltipProvider>
                 <Badge variant="outline" className="flex items-center gap-1.5 px-2">
                     <Trophy className="w-3 h-3 text-yellow-500"/> {player.tricksWon || 0}
                 </Badge>
@@ -427,11 +455,11 @@ export default function GameBoard({ initialGameState, localPlayerId, isHost, bro
         {/* The Table */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
             <div 
-                className="relative rounded-full bg-green-800 shadow-2xl flex items-center justify-center" 
+                className="relative rounded-full bg-green-900/80 shadow-2xl flex items-center justify-center" 
                 style={{
                     width: 'clamp(300px, 40vw, 550px)', 
                     aspectRatio: '1 / 1',
-                    background: 'radial-gradient(circle, hsl(140 70% 25%) 0%, hsl(140 70% 20%) 100%)',
+                    background: 'radial-gradient(circle, hsl(140 80% 18%) 0%, hsl(140 90% 12%) 100%)',
                     boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5), 0 10px 30px rgba(0,0,0,0.3)'
                 }}
             >
@@ -441,9 +469,9 @@ export default function GameBoard({ initialGameState, localPlayerId, isHost, bro
                     style={{
                         background: `
                             repeating-radial-gradient(circle at 50% 50%, transparent, transparent 10px, rgba(0,0,0,.2) 10px, rgba(0,0,0,.2) 20px),
-                            url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzkyNjY0MSI+PC9yZWN0PjxwYXRoIGQ9Ik0gMCwxMCBIIDEwMCBNIDAsMzAgSCAxMDAgTSAwLDUwIEggMTAwIE0gMCw3MCBIIDEwMCBNIDAsOTAgSCAxMDAiIHN0cm9rZT0iIzgwNTMyRiIgc3Ryb2tlLXdpZHRoPSIzIj48L3BhdGg+PHBhdGggZD0iTSA1MCwwIFYgMTAwIiBzdHJva2U9IiM4MDUzMkYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLW9wYWNpdHk9IjAuNSI+PC9wYXRoPjwvc3ZnPg==')`,
+                            #6b4a2d`,
                         backgroundSize: 'auto, 100px 100px',
-                        boxShadow: 'inset 0 0 15px #54371e, 0 0 10px #54371e, 0 5px 15px rgba(0,0,0,0.5)',
+                        boxShadow: 'inset 0 0 15px #4a2f1a, 0 0 10px #4a2f1a, 0 5px 15px rgba(0,0,0,0.5)',
                         zIndex: -1
                     }}
                 ></div>
@@ -514,8 +542,14 @@ export default function GameBoard({ initialGameState, localPlayerId, isHost, bro
                    {localPlayer.name} (You)
                 </Badge>
                 <div className="flex gap-2 items-center">
-                    {localPlayer.isBidder && <Badge title="Bidder"><Crown className="w-4 h-4" /> </Badge>}
-                    {localPlayer.isPartner && <Badge variant="secondary" title="Partner"><Users className="w-4 h-4"/></Badge>}
+                    <TooltipProvider><Tooltip>
+                        <TooltipTrigger>{localPlayer.isBidder && <Badge><Crown className="w-4 h-4" /> </Badge>}</TooltipTrigger>
+                        <TooltipContent><p>Bidder</p></TooltipContent>
+                    </Tooltip></TooltipProvider>
+                     <TooltipProvider><Tooltip>
+                        <TooltipTrigger>{localPlayer.isPartner && <Badge variant="secondary"><Users className="w-4 h-4"/></Badge>}</TooltipTrigger>
+                        <TooltipContent><p>Partner</p></TooltipContent>
+                    </Tooltip></TooltipProvider>
                     <Badge variant="outline" className="flex items-center gap-1.5 px-2">
                         <Trophy className="w-3 h-3 text-yellow-500"/> {localPlayer.tricksWon || 0}
                     </Badge>
@@ -633,7 +667,7 @@ export default function GameBoard({ initialGameState, localPlayerId, isHost, bro
               {gameState.phase === 'results' && gameState.highestBid && (
                   <AnimatePresence>
                       {(gameState.team1Score >= gameState.highestBid!.amount) && 
-                          <Confetti width={windowSize.width} height={windowSize.height} recycle={false} />
+                          <Confetti width={windowSize.width} height={windowSize.height} recycle={false} numberOfPieces={400} />
                       }
                   </AnimatePresence>
               )}
@@ -648,7 +682,7 @@ export default function GameBoard({ initialGameState, localPlayerId, isHost, bro
                       <div className="grid grid-cols-2 gap-4 text-left">
                           <div className="bg-muted p-4 rounded-lg">
                               <h4 className="font-bold text-primary">Bidder Team</h4>
-                              <p>Bid: {gameState.highestBid.amount}</p>
+                              <p>Target: {gameState.highestBid.amount}</p>
                               <p>Scored: {gameState.team1Score}</p>
                           </div>
                           <div className="bg-muted p-4 rounded-lg">
@@ -659,7 +693,7 @@ export default function GameBoard({ initialGameState, localPlayerId, isHost, bro
                   </div>
               )}
             <DialogFooter className="mt-4">
-              <Button onClick={resetGame} className="w-full">Play Again</Button>
+              <Button onClick={handleNextRound} className="w-full" disabled={!isHost}>Play Again</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
