@@ -96,6 +96,7 @@ export const useGameConnection = (localPlayerName: string) => {
                 break;
             case 'welcome':
                 // This is now handled by the general 'game_state_update' broadcast
+                setGameState(message.payload);
                 break;
             case 'game_full':
                 toast({ variant: 'destructive', title: 'Game is full', description: 'Could not join the game because it is full.' });
@@ -212,7 +213,10 @@ export const useGameConnection = (localPlayerName: string) => {
 
             conn.on('open', () => {
                 setConnections({ [hostPeerId]: conn });
-                conn.send({ type: 'player_join_request', payload: { peerId: myPeerId, playerName: localPlayerName } });
+                
+                // Welcome message is now sent as a direct game_state_update broadcast
+                const requestMessage: Message = { type: 'player_join_request', payload: { peerId: myPeerId, playerName: localPlayerName } };
+                conn.send(requestMessage);
                 
                 conn.on('data', (data) => handleIncomingMessage(data as Message, hostPeerId));
 

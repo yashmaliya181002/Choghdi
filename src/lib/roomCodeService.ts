@@ -1,15 +1,20 @@
 'use server';
 
-// This service uses a simple public "phonebook" to map a 4-digit code to a PeerJS ID.
-// This is a more reliable implementation for demonstration purposes.
-// Data is stored in memory on the service and may reset, but the service itself is stable.
+// This service communicates with our own application's API routes.
 
-const PHONEBOOK_URL = 'https://peer-server-simple-phonebook.glitch.me';
+const getBaseUrl = () => {
+    // For server-side execution, VERCEL_URL is available. For client-side, we use relative.
+    if (process.env.VERCEL_URL) {
+        return `https://${process.env.VERCEL_URL}`;
+    }
+    // Fallback for local development. This works because it's called from the client in Lobby.tsx
+    return ''; 
+};
+
 
 export const createRoom = async (peerId: string): Promise<string> => {
   try {
-    // The service expects the peerId in the body for creation
-    const response = await fetch(`${PHONEBOOK_URL}/create`, {
+    const response = await fetch(`${getBaseUrl()}/api/room`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -19,12 +24,12 @@ export const createRoom = async (peerId: string): Promise<string> => {
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.error || `Service responded with status: ${response.status}`);
+      throw new Error(errorData.error || `Server responded with status: ${response.status}`);
     }
 
     const data = await response.json();
     if (!data.code) {
-      throw new Error("The room service did not return a valid code.");
+      throw new Error("The server did not return a valid room code.");
     }
     
     return data.code;
@@ -43,9 +48,7 @@ export const getPeerIdFromCode = async (code: string): Promise<string | null> =>
   }
   
   try {
-    const response = await fetch(`${PHONEBOOK_URL}/get/${code}`, {
-      method: 'GET',
-    });
+    const response = await fetch(`${getBaseUrl()}/api/room?code=${code}`);
     
     if (response.status === 404) {
       return null; // Code not found, which is a valid scenario.
@@ -53,7 +56,7 @@ export const getPeerIdFromCode = async (code: string): Promise<string | null> =>
 
     if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || `Service responded with status: ${response.status}`);
+        throw new Error(errorData.error || `Server responded with status: ${response.status}`);
     }
 
     const data = await response.json();
@@ -64,6 +67,6 @@ export const getPeerIdFromCode = async (code: string): Promise<string | null> =>
     if (error instanceof Error) {
         throw new Error(`Could not join the room. Please check the code and your internet connection. Details: ${error.message}`);
     }
-    throw new Error("An unknown error occurred while retrieving the room information.");
+    throw new Error("An unknown error occurred while retrieving room information.");
   }
 };
