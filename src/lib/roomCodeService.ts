@@ -3,12 +3,13 @@
 // This service communicates with our own application's API routes.
 
 const getBaseUrl = () => {
-    // For server-side execution, VERCEL_URL is available. For client-side, we use relative.
     if (process.env.VERCEL_URL) {
+        // Vercel-provided URL for production/preview deployments.
         return `https://${process.env.VERCEL_URL}`;
     }
-    // Fallback for local development. This works because it's called from the client in Lobby.tsx
-    return ''; 
+    // Fallback for local development. Assumes the app is running on port 9002.
+    // This is necessary because server-side fetch needs an absolute URL.
+    return 'http://localhost:9002'; 
 };
 
 
