@@ -80,9 +80,6 @@ export default function Lobby() {
         
         setIsLoading(true);
         await joinGame(joinGameId);
-        // Transition to lobby will be handled by state updates from the host
-        // We optimistically set to lobby, but connection errors might revert this
-        setView('lobby');
         setIsLoading(false);
     };
 

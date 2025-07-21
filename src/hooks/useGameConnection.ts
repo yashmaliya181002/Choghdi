@@ -119,9 +119,10 @@ export const useGameConnection = (localPlayerName: string) => {
         import('peerjs').then(({ default: Peer }) => {
             if (peerRef.current) return;
 
+            // Using a specific, reliable public PeerJS server
             const newPeer = new Peer({
-                secure: true,
                 host: 'peerjs.92k.de',
+                secure: true,
                 port: 443,
             });
             peerRef.current = newPeer;
@@ -173,7 +174,7 @@ export const useGameConnection = (localPlayerName: string) => {
         }
         
         try {
-            const { code } = await createRoom(myPeerId);
+            const code = await createRoom(myPeerId);
             setRole('host');
             setGameState({ ...initialState, id: code });
         } catch (error: any) {
@@ -188,7 +189,7 @@ export const useGameConnection = (localPlayerName: string) => {
         }
         
         try {
-            const { peerId: hostPeerId } = await getPeerIdFromCode(gameCode);
+            const hostPeerId = await getPeerIdFromCode(gameCode);
             if (!hostPeerId) {
                 toast({ variant: 'destructive', title: 'Game not found', description: 'The game code is invalid or has expired.'});
                 return;
