@@ -4,48 +4,48 @@
 
 @layer base {
   :root {
-    --background: 210 40% 98%;
-    --foreground: 215 28% 18%;
-    --card: 210 40% 98%;
-    --card-foreground: 215 28% 18%;
-    --popover: 210 40% 98%;
-    --popover-foreground: 215 28% 18%;
-    --primary: 271 76% 53%; /* Deep Indigo */
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 215 28% 18%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215 20% 45%;
-    --accent: 16 95% 59%; /* Warm Coral */
-    --accent-foreground: 210 40% 98%;
+    --background: 120 60% 95%;
+    --foreground: 120 20% 10%;
+    --card: 120 60% 95%;
+    --card-foreground: 120 20% 10%;
+    --popover: 120 60% 95%;
+    --popover-foreground: 120 20% 10%;
+    --primary: 140 70% 35%; /* Lush Green */
+    --primary-foreground: 120 60% 98%;
+    --secondary: 130 50% 90%;
+    --secondary-foreground: 120 20% 10%;
+    --muted: 130 50% 90%;
+    --muted-foreground: 120 15% 45%;
+    --accent: 45 95% 59%; /* Gold Accent */
+    --accent-foreground: 45 20% 10%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 271 76% 53%;
+    --border: 140 40% 80%;
+    --input: 140 40% 85%;
+    --ring: 140 70% 35%;
     --radius: 0.5rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 271 76% 53%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 16 95% 59%;
-    --accent-foreground: 210 40% 98%;
+    --background: 120 25% 10%;
+    --foreground: 120 10% 95%;
+    --card: 120 25% 10%;
+    --card-foreground: 120 10% 95%;
+    --popover: 120 25% 10%;
+    --popover-foreground: 120 10% 95%;
+    --primary: 140 70% 35%;
+    --primary-foreground: 120 10% 98%;
+    --secondary: 130 20% 15%;
+    --secondary-foreground: 120 10% 98%;
+    --muted: 130 20% 15%;
+    --muted-foreground: 120 10% 65%;
+    --accent: 45 95% 59%;
+    --accent-foreground: 45 20% 10%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 271 76% 53%;
+    --border: 130 20% 20%;
+    --input: 130 20% 20%;
+    --ring: 140 70% 35%;
   }
 }
 
@@ -54,7 +54,7 @@
     @apply border-border;
   }
   body {
-    background-color: hsl(248, 25%, 98%);
+    background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family: 'Inter', sans-serif;
   }
@@ -64,12 +64,10 @@
 }
 
 .game-background {
-    background-color: #E6E6FA; /* Very light lavender */
-    background-image:
-        radial-gradient(circle at 100% 150%, #E6E6FA 24%, #e0e0f5 25%, #e0e0f5 28%, #E6E6FA 29%, #E6E6FA 36%, #e0e0f5 36%, #e0e0f5 40%, transparent 40%, transparent),
-        radial-gradient(circle at 0    150%, #E6E6FA 24%, #e0e0f5 25%, #e0e0f5 28%, #E6E6FA 29%, #E6E6FA 36%, #e0e0f5 36%, #e0e0f5 40%, transparent 40%, transparent),
-        radial-gradient(circle at 50%  100%, #e0e0f5 10%, #E6E6FA 11%, #E6E6FA 23%, #e0e0f5 24%, #e0e0f5 30%, #E6E6FA 31%, #E6E6FA 43%, #e0e0f5 44%, #e0e0f5 50%, #E6E6FA 51%, #E6E6FA 68%, #e0e0f5 69%, #e0e0f5 71%, transparent 71%, transparent),
-        radial-gradient(circle at 100% 50%, #e0e0f5 5%, #E6E6FA 6%, #E6E6FA 15%, #e0e0f5 16%, #e0e0f5 20%, #E6E6FA 21%, #E6E6FA 30%, #e0e0f5 31%, #e0e0f5 35%, #E6E6FA 36%, #E6E6FA 43%, #e0e0f5 44%, #e0e0f5 47%, transparent 47%, transparent),
-        radial-gradient(circle at 0    50%, #e0e0f5 5%, #E6E6FA 6%, #E6E6FA 15%, #e0e0f5 16%, #e0e0f5 20%, #E6E6FA 21%, #E6E6FA 30%, #e0e0f5 31%, #e0e0f5 35%, #E6E6FA 36%, #E6E6FA 43%, #e0e0f5 44%, #e0e0f5 47%, transparent 47%, transparent);
-    background-size: 100px 50px;
+  background-color: #166534; /* A rich green */
+  background-image: 
+    radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 20px 20px;
+  background-position: 0 0, 10px 10px;
 }

@@ -388,7 +388,7 @@ export default function GameBoard({ initialGameState, localPlayerId, isHost, bro
   const localPlayerHand = localPlayer.hand;
 
   return (
-      <div className="relative w-full h-screen overflow-hidden bg-background p-4 font-body">
+      <div className="relative w-full h-screen overflow-hidden game-background p-4 font-body">
         <AnimatePresence>
         {(gameState.phase === 'playing' || gameState.phase === 'results') && gameState.highestBid && (
             <motion.div 
@@ -431,7 +431,7 @@ export default function GameBoard({ initialGameState, localPlayerId, isHost, bro
                 style={{
                     width: 'clamp(300px, 40vw, 550px)', 
                     aspectRatio: '1 / 1',
-                    background: 'radial-gradient(circle, hsl(var(--primary) / 0.8) 0%, hsl(var(--primary) / 0.9) 100%)', // Forest green gradient
+                    background: 'radial-gradient(circle, hsl(140 70% 25%) 0%, hsl(140 70% 20%) 100%)',
                     boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5), 0 10px 30px rgba(0,0,0,0.3)'
                 }}
             >
