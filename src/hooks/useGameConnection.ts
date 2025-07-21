@@ -122,8 +122,8 @@ export const useGameConnection = (localPlayerName: string) => {
         import('peerjs').then(({ default: Peer }) => {
             if (peerRef.current) return;
 
+            // Using a specific, reliable public PeerJS server
             const newPeer = new Peer({
-                // Using a specific, reliable public PeerJS server
                 host: 'peerjs.92k.de',
                 secure: true,
                 port: 443,
@@ -160,7 +160,7 @@ export const useGameConnection = (localPlayerName: string) => {
                 } else if (err.type === 'peer-unavailable') {
                     toast({ variant: 'destructive', title: 'Game Not Found', description: 'The 4-digit code is incorrect or has expired.'})
                 } else {
-                     toast({ variant: 'destructive', title: 'Connection Error', description: 'An unexpected network error occurred.' });
+                     toast({ variant: 'destructive', title: 'Connection Error', description: `An unexpected network error occurred: ${err.message}` });
                 }
                 setStatus('error');
             });
@@ -185,7 +185,7 @@ export const useGameConnection = (localPlayerName: string) => {
             setRole('host');
             setGameState({ ...initialState, id: code });
         } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Error creating room', description: error.message });
+            toast({ variant: 'destructive', title: 'Error Creating Room', description: error.message });
         }
     };
 
@@ -198,7 +198,7 @@ export const useGameConnection = (localPlayerName: string) => {
         try {
             const hostPeerId = await getPeerIdFromCode(gameCode);
             if (!hostPeerId) {
-                toast({ variant: 'destructive', title: 'Game not found', description: 'The game code is invalid or has expired.'});
+                toast({ variant: 'destructive', title: 'Game Not Found', description: 'The game code is invalid or has expired.'});
                 return;
             }
 
@@ -231,7 +231,7 @@ export const useGameConnection = (localPlayerName: string) => {
             });
 
         } catch (error: any) {
-             toast({ variant: 'destructive', title: 'Error joining game', description: error.message });
+             toast({ variant: 'destructive', title: 'Error Joining Room', description: error.message });
         }
     };
     
