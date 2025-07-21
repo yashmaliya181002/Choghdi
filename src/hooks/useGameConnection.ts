@@ -103,12 +103,24 @@ export const useGameConnection = (localPlayerName: string) => {
 
             newPeer.on('connection', (conn) => {
                 console.log(`Incoming connection from ${conn.peer}`);
-                connectionsRef.current = {...connectionsRef.current, [conn.peer]: conn };
+                connectionsRef.current[conn.peer] = conn;
                 conn.on('open', () => {
                     conn.on('data', (data) => handleIncomingMessage(data as Message, conn.peer));
                     conn.on('close', () => {
                          console.log(`Connection closed from ${conn.peer}`);
-                         // A real implementation would handle player disconnects here
+                         // A real implementation would handle player disconnects here by removing them from game state and broadcasting.
+                         if (role === 'host' && gameStateRef.current) {
+                            const newPlayers = gameStateRef.current.players.filter(p => p.peerId !== conn.peer);
+                            if (newPlayers.length < gameStateRef.current.players.length) {
+                                const newGameState = {
+                                    ...gameStateRef.current,
+                                    players: newPlayers,
+                                    turnHistory: [...gameStateRef.current.turnHistory, `A player has disconnected.`]
+                                };
+                                broadcastGameState(newGameState);
+                            }
+                         }
+                         delete connectionsRef.current[conn.peer];
                     });
                 });
             });
@@ -156,7 +168,7 @@ export const useGameConnection = (localPlayerName: string) => {
         setRole('peer');
 
         conn.on('open', () => {
-            connectionsRef.current = { ...connectionsRef.current, [hostPeerId]: conn };
+            connectionsRef.current[hostPeerId] = conn;
             console.log(`Connection opened to host ${hostPeerId}`);
             // Announce presence to host
             conn.send({ type: 'player_join_request', payload: { peerId: myPeerId, playerName: localPlayerName } });

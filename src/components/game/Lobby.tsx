@@ -33,6 +33,19 @@ export default function Lobby() {
     const { myPeerId, status, role, gameState, hostGame, joinGame, broadcastGameState } = useGameConnection(playerName);
 
     useEffect(() => {
+        const nameFromStorage = localStorage.getItem('playerName');
+        if (nameFromStorage) {
+            setPlayerName(nameFromStorage);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (playerName) {
+            localStorage.setItem('playerName', playerName);
+        }
+    }, [playerName]);
+
+    useEffect(() => {
         if (gameToJoin && playerName && status === 'connected' && role === 'none' && !gameState) {
             handleJoinFromUrl(gameToJoin);
         }
@@ -50,10 +63,10 @@ export default function Lobby() {
             setView('game');
         } else if (gameState?.phase === 'lobby') {
             setView('lobby');
-        } else {
+        } else if (role === 'none') {
             setView('main');
         }
-    }, [gameState]);
+    }, [gameState, role]);
 
     const handleCreateGame = async () => {
         if (!playerName.trim()) {
@@ -71,7 +84,7 @@ export default function Lobby() {
         };
         
         const initialGameState: GameState = {
-            id: myPeerId, 
+            id: '0000', 
             hostPeerId: myPeerId,
             phase: 'lobby',
             playerCount,
@@ -101,7 +114,7 @@ export default function Lobby() {
         }
         setIsLoading(true);
         await joinGame(joinGameId);
-        setView('lobby');
+        // The view will change automatically via useEffect once gameState is received
         setIsLoading(false);
     };
 
@@ -117,7 +130,7 @@ export default function Lobby() {
         updatedState.turnHistory.push(`The game has started!`);
         
         broadcastGameState(updatedState);
-        setView('game');
+        // View will change automatically
         setIsLoading(false);
     }
 
@@ -128,9 +141,16 @@ export default function Lobby() {
         toast({ title: "Copied!", description: "Game link copied to clipboard." });
     }
 
+    const copyGameId = () => {
+        if (!gameState?.id) return;
+        navigator.clipboard.writeText(gameState.id);
+        toast({ title: "Copied!", description: "Game ID copied to clipboard." });
+    }
+
+
     if (view === 'game' && gameState) {
         const localPlayer = gameState.players.find(p => p.peerId === myPeerId);
-        if (!localPlayer) return <div className="w-full h-screen flex items-center justify-center"><Loader2 className="animate-spin mr-2" /> Joining game...</div>
+        if (!localPlayer) return <div className="w-full h-screen flex items-center justify-center bg-gamemat"><Loader2 className="animate-spin mr-2" /> Joining game...</div>
 
         return <GameBoard
             initialGameState={gameState}
@@ -149,16 +169,19 @@ export default function Lobby() {
                  <Card className="w-full max-w-md shadow-2xl bg-card/80 backdrop-blur-sm border-white/20">
                     <CardHeader className="text-center">
                         <CardTitle className="text-3xl font-bold text-primary">Game Lobby</CardTitle>
-                        <CardDescription>Share the link with your friends to join!</CardDescription>
+                        <CardDescription>Share the 4-digit ID or the full link to join!</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="flex flex-col items-center justify-center gap-2">
                              <Label>Share Game ID</Label>
-                            <div className="text-sm font-mono tracking-widest bg-muted/50 p-2 rounded-lg border w-full text-center truncate">
-                               {gameState.hostPeerId}
+                            <div className="text-2xl font-mono tracking-widest bg-muted/50 p-2 rounded-lg border w-full text-center truncate">
+                               {gameState.id}
                             </div>
-                            <Button variant="outline" onClick={copyGameLink} className="w-full">
-                               <Copy className="mr-2" /> Copy Game ID
+                            <Button variant="outline" onClick={copyGameId} className="w-full">
+                               <Copy className="mr-2" /> Copy 4-Digit ID
+                            </Button>
+                             <Button variant="secondary" onClick={copyGameLink} className="w-full">
+                               <LinkIcon className="mr-2" /> Copy Full Invite Link
                             </Button>
                         </div>
 
@@ -168,7 +191,7 @@ export default function Lobby() {
                                 {gameState.players.map(p => (
                                     <div key={p.id} className="flex items-center justify-between">
                                         <span>{p.name} {p.peerId === myPeerId && '(You)'}</span>
-                                        {p.id === 0 && <Badge>Host</Badge>}
+                                        {p.peerId === gameState.hostPeerId && <Badge>Host</Badge>}
                                     </div>
                                 ))}
                             </div>
@@ -253,14 +276,14 @@ export default function Lobby() {
 
                          <div className="flex items-end gap-4">
                             <div className="space-y-2 flex-grow">
-                                <Label htmlFor="game-id" className="text-foreground/90 font-bold">Game Code</Label>
-                                <Input id="game-id" placeholder="Enter game code from host..." value={joinGameId} onChange={(e) => setJoinGameId(e.target.value)} className="bg-white/30 border-black/30 text-black placeholder:text-gray-700 font-semibold focus:bg-white/50" />
+                                <Label htmlFor="game-id" className="text-foreground/90 font-bold">Host's Game ID</Label>
+                                <Input id="game-id" placeholder="Enter full ID from host..." value={joinGameId} onChange={(e) => setJoinGameId(e.target.value)} className="bg-white/30 border-black/30 text-black placeholder:text-gray-700 font-semibold focus:bg-white/50" />
                             </div>
                              <Button variant="secondary" className="w-full h-10 flex-[2]" onClick={handleJoinGame} disabled={isLoading || status !== 'connected' || !playerName || !joinGameId}>
                                 Join Game
                              </Button>
                          </div>
-                         <p className="text-xs text-center text-foreground/70 pt-2">To join, paste the host's full ID they provide.</p>
+                         <p className="text-xs text-center text-foreground/70 pt-2">Join using the full ID from the host's invite link.</p>
                      </CardContent>
                 </Card>
             </motion.div>
